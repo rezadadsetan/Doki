@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="900" height="430" viewBox="0 0 900 430" role="img" aria-label="Doki diagnostic coverage dashboard">
+  <defs>
+    <linearGradient id="line"><stop stop-color="#ff4d3d"/><stop offset=".5" stop-color="#ff8a1f"/><stop offset="1" stop-color="#ffc857"/></linearGradient>
+    <style>
+      .title{font:700 25px 'Trebuchet MS',sans-serif;fill:#fff4e6}
+      .label{font:700 9px 'Trebuchet MS',sans-serif;fill:#ff8a1f;letter-spacing:1.5px}
+      .metric{font:700 25px 'Trebuchet MS',sans-serif;fill:#fff4e6}
+      .body{font:12px 'Trebuchet MS',sans-serif;fill:#bda7a2}
+      .strong{font-weight:700;fill:#fff4e6}
+      .mono{font:10px ui-monospace,Consolas,monospace;fill:#bda7a2}
+      @keyframes reveal{from{opacity:0}to{opacity:1}}
+      @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+      .card{animation:reveal .65s cubic-bezier(.32,.72,0,1) both}
+      .bar{transform-origin:left;animation:grow .8s cubic-bezier(.32,.72,0,1) both}
+      @media(prefers-reduced-motion:reduce){.card,.bar{animation:none}}
+    </style>
+  </defs>
+  <rect width="900" height="430" rx="26" fill="#171012"/>
+  <rect x="7" y="7" width="886" height="416" rx="21" fill="#0f0b0c" stroke="#4b2524"/>
+  <path d="M29 42h842" stroke="url(#line)"/>
+  <text x="31" y="39" class="label">QC COVERAGE / ONE DEVICE · ONE REPORT</text>
+  <text x="31" y="88" class="title">Automatic signals</text>
+  <text x="463" y="88" class="title">Technician controls</text>
+
+  <g transform="translate(31 108)" class="card" style="animation-delay:.00s"><rect width="198" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><circle cx="177" cy="21" r="5" fill="#ff4d3d"/><text x="16" y="27" class="label">BATTERY</text><text x="16" y="58" class="metric">Health + cycles</text><text x="16" y="78" class="mono">runtime estimate</text></g>
+  <g transform="translate(245 108)" class="card" style="animation-delay:.07s"><rect width="198" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><circle cx="177" cy="21" r="5" fill="#ff8a1f"/><text x="16" y="27" class="label">STORAGE</text><text x="16" y="58" class="metric">SMART + wear</text><text x="16" y="78" class="mono">NVMe / SATA</text></g>
+  <g transform="translate(31 216)" class="card" style="animation-delay:.14s"><rect width="198" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><circle cx="177" cy="21" r="5" fill="#ffc857"/><text x="16" y="27" class="label">DRIVERS</text><text x="16" y="58" class="metric">Missing + broken</text><text x="16" y="78" class="mono">device-level reasons</text></g>
+  <g transform="translate(245 216)" class="card" style="animation-delay:.21s"><rect width="198" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><circle cx="177" cy="21" r="5" fill="#ff6b50"/><text x="16" y="27" class="label">WINDOWS</text><text x="16" y="58" class="metric">Update state</text><text x="16" y="78" class="mono">pending reboot detection</text></g>
+
+  <g transform="translate(463 108)" class="card" style="animation-delay:.12s"><rect width="188" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><text x="16" y="27" class="label">STRESS LAB</text><text x="16" y="56" class="body strong">CPU · RAM · SSD · GPU</text><rect x="16" y="70" width="154" height="6" rx="3" fill="#30191a"/><rect x="16" y="70" width="137" height="6" rx="3" fill="#ff4d3d" class="bar"/></g>
+  <g transform="translate(668 108)" class="card" style="animation-delay:.19s"><rect width="188" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><text x="16" y="27" class="label">MANUAL CHECKS</text><text x="16" y="56" class="body strong">Display · ports · audio</text><rect x="16" y="70" width="154" height="6" rx="3" fill="#30191a"/><rect x="16" y="70" width="122" height="6" rx="3" fill="#ff8a1f" class="bar" style="animation-delay:.08s"/></g>
+  <g transform="translate(463 216)" class="card" style="animation-delay:.26s"><rect width="188" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><text x="16" y="27" class="label">DEVICE PREP</text><text x="16" y="56" class="body strong">Rename · EDR · restart</text><rect x="16" y="70" width="154" height="6" rx="3" fill="#30191a"/><rect x="16" y="70" width="105" height="6" rx="3" fill="#ffc857" class="bar" style="animation-delay:.16s"/></g>
+  <g transform="translate(668 216)" class="card" style="animation-delay:.33s"><rect width="188" height="92" rx="15" fill="#140e0f" stroke="#4d2523"/><text x="16" y="27" class="label">REPORT</text><text x="16" y="56" class="body strong">HTML · JSON · Jira slot</text><rect x="16" y="70" width="154" height="6" rx="3" fill="#30191a"/><rect x="16" y="70" width="145" height="6" rx="3" fill="#ff6b50" class="bar" style="animation-delay:.24s"/></g>
+
+  <path d="M31 350h838" stroke="#30191a"/>
+  <circle cx="42" cy="378" r="5" fill="#06d170"/><text x="56" y="382" class="body strong">OK</text>
+  <circle cx="133" cy="378" r="5" fill="#ff8a1f"/><text x="147" y="382" class="body strong">CHECK</text>
+  <circle cx="253" cy="378" r="5" fill="#e5484d"/><text x="267" y="382" class="body strong">ACTION</text>
+  <text x="869" y="382" text-anchor="end" class="label">WINDOWS 10/11 · NO INSTALL · PERSIAN FIRST</text>
+  <text x="31" y="410" class="mono">Doki turns hardware signals and technician checks into one auditable result.</text>
+</svg>

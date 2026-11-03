@@ -1,0 +1,92 @@
+﻿<!doctype html>
+<html lang="{{lang}}" dir="{{dir}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{title}} - {{asset}}</title>
+<style>
+  :root { --green: #06D170; --green-dark: #04A85A; --navy: #252A3C; --muted: #6B7080; --line: #EBECF2; --amber: #E0560F; --red: #E5484D;
+          --g-bg: #EBFBF4; --a-bg: #FFF1E8; --r-bg: #FDECEC; --n-bg: #F4F5F8; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #F7F8FA; color: var(--navy); font-family: "Segoe UI", Tahoma, sans-serif; font-size: 14px; line-height: 1.55; }
+  .page { max-width: 880px; margin: 24px auto; background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 28px 32px; }
+  header { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; border-bottom: 3px solid var(--green); padding-bottom: 14px; }
+  .brand { font-size: 26px; font-weight: 700; direction: ltr; } .brand b { color: var(--green); }
+  h1 { font-size: 20px; margin: 4px 0 0; }
+  .meta { color: var(--muted); font-size: 13px; text-align: end; }
+  .verdict { margin: 18px 0 8px; padding: 16px 20px; border-radius: 12px; font-size: 22px; font-weight: 700; }
+  .verdict ul { margin: 8px 0 0; padding-inline-start: 22px; font-size: 14px; font-weight: 400; }
+  .st-green { background: var(--g-bg); color: var(--green-dark); } .st-amber { background: var(--a-bg); color: var(--amber); }
+  .st-red { background: var(--r-bg); color: var(--red); } .st-grey { background: var(--n-bg); color: var(--muted); }
+  h2 { font-size: 16px; margin: 22px 0 8px; display: flex; align-items: center; gap: 10px; }
+  .pill { display: inline-block; padding: 2px 12px; border-radius: 12px; font-size: 12px; font-weight: 600; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: start; padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; }
+  td.ltr, .ltr { direction: ltr; unicode-bidi: isolate; }
+  .kv td:first-child { color: var(--muted); width: 32%; }
+  .note { color: var(--muted); font-size: 12px; }
+  .badge-guest { display: inline-block; margin-inline-start: 8px; padding: 2px 14px; border-radius: 14px; background: #FF661F; color: #fff; font-size: 15px; vertical-align: middle; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .notes { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 40px; }
+  footer { margin-top: 24px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 10px; display: flex; justify-content: space-between; }
+  .sign { margin-top: 28px; display: flex; gap: 40px; } .sign div { flex: 1; border-top: 1px dashed var(--muted); padding-top: 6px; color: var(--muted); font-size: 12px; }
+  .copybar { margin: 14px 0 0; display: flex; align-items: center; gap: 12px; }
+  .copybar button { font: inherit; font-weight: 600; background: var(--green); color: #fff; border: 0; border-radius: 10px; padding: 9px 20px; cursor: pointer; }
+  .copybar button:hover { background: var(--green-dark); }
+  #copyMsg { color: var(--green-dark); font-weight: 600; }
+  /* Hidden but selectable; no off-screen offset (on an RTL page that would create a huge horizontal scroll area). */
+  #copySrc { position: fixed; top: 0; inset-inline-start: 0; width: 2px; height: 2px; opacity: 0; border: 0; padding: 0; resize: none; pointer-events: none; }
+  /* Phase 10: grade tag, stamp, grading table */
+  header { position: relative; }
+  .gtag { display: inline-block; margin-inline-start: 8px; padding: 2px 14px; border-radius: 14px; color: #fff; font-size: 15px; font-weight: 700; vertical-align: middle; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .gline { font-size: 16px; font-weight: 700; margin-top: 6px; }
+  .stampwrap { position: relative; height: 0; }
+  .stamp { position: absolute; inset-inline-end: 18px; top: -6px; transform: rotate(-14deg); opacity: .82; mix-blend-mode: multiply; pointer-events: none; z-index: 2; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .verdict { padding-inline-end: 200px; min-height: 120px; }
+  table.grade td.num { direction: ltr; text-align: end; width: 70px; font-variant-numeric: tabular-nums; }
+  table.grade tr.total td { font-weight: 700; border-top: 2px solid var(--navy); }
+  @media (max-width: 640px) { .verdict { padding-inline-end: 20px; } .stamp { width: 120px; height: 120px; top: -30px; } }
+  @media print {
+    .copybar, #copySrc { display: none !important; }
+    @page { size: A4; margin: 12mm; }
+    body { background: #fff; font-size: 12px; }
+    .page { border: 0; margin: 0; padding: 0; max-width: none; }
+    .verdict, .pill, .st-green, .st-amber, .st-red, .st-grey { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    h2 { break-after: avoid; } table { break-inside: auto; } tr { break-inside: avoid; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <div><div class="brand"><b>Doki</b></div><h1>{{title}} {{roleBadge}} {{gradeTag}}</h1></div>
+    <div class="meta">{{meta}}</div>
+  </header>
+  <div class="copybar"><button id="copyBtn" type="button">{{copyLabel}}</button> <span id="copyMsg"></span></div>
+  <textarea id="copySrc" readonly aria-hidden="true">{{copyText}}</textarea>
+  <div class="stampwrap">{{stamp}}</div>
+  <div class="verdict st-{{overallStatus}}">{{overallText}}{{gradeLine}}{{overallReasons}}</div>
+  {{sections}}
+  <h2>{{notesTitle}}</h2>
+  <div class="notes">{{notes}}</div>
+  {{gradeTable}}
+  <div class="sign"><div>{{technicianLabel}}: {{technician}}</div><div>&nbsp;</div></div>
+  <footer><span>{{generated}} · <a href="https://github.com/rezadadsetan/Doki">GitHub</a></span><span class="ltr">{{timestamp}}</span></footer>
+</div>
+<script>
+(function () {
+  var btn = document.getElementById('copyBtn'), src = document.getElementById('copySrc'), msg = document.getElementById('copyMsg');
+  function done() { msg.textContent = '{{copiedLabel}}'; setTimeout(function () { msg.textContent = ''; }, 4000); }
+  function fallback() {
+    src.focus(); src.select();
+    try { if (document.execCommand('copy')) { done(); } } catch (e) { }
+    btn.focus();
+  }
+  btn.addEventListener('click', function () {
+    var text = src.value;
+    if (navigator.clipboard && window.isSecureContext) { navigator.clipboard.writeText(text).then(done, fallback); } else { fallback(); }
+  });
+})();
+</script>
+</body>
+</html>
