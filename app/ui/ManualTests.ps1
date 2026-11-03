@@ -302,7 +302,7 @@ function Show-WkKeyboardTest {
     $wide = @{ Back = 2; Tab = 1.5; Capital = 1.8; Return = 2.2; LeftShift = 2.3; RightShift = 2.6; Space = 6; Oem5 = 1.5 }
 
     $w = New-Object System.Windows.Window
-    $w.Title = T 'manual.kbTitle'; $w.Width = 1080; $w.Height = 520; $w.WindowStartupLocation = 'CenterOwner'
+    $w.Title = T 'manual.kbTitle'; $w.Width = 1080; $w.Height = 650; $w.MinHeight = 600; $w.WindowStartupLocation = 'CenterOwner'
     $w.Owner = $global:WkWindow; $w.Background = Get-WkBrush '#F7F8FA'; $w.FontFamily = 'Segoe UI, Tahoma'
     $root = New-Object System.Windows.Controls.StackPanel
     $root.Margin = '20'
@@ -337,7 +337,7 @@ function Show-WkKeyboardTest {
     }
     $done = New-Object System.Windows.Controls.Button
     $done.Style = $global:WkWindow.FindResource('Primary'); $done.Content = T 'manual.kbDone'; $done.Margin = '0,16,0,0'
-    $done.HorizontalAlignment = 'Left'; $done.Focusable = $false; $done.Name = 'KbDone'
+    $done.HorizontalAlignment = 'Left'; $done.MinWidth = 180; $done.Focusable = $false; $done.Name = 'KbDone'
     [void]$root.Children.Add($done)
     $w.Content = $root
 
