@@ -1,4 +1,4 @@
-﻿// Doki.exe: launcher compiled with the built-in .NET Framework csc (C# 5). D-020.
+// Doki.exe: launcher compiled with the built-in .NET Framework csc (C# 5). D-020.
 // Defender-friendly by design: no packed/embedded script, no "powershell -ExecutionPolicy Bypass -WindowStyle Hidden" command line.
 // It hosts Windows PowerShell 5.1 in this process (System.Management.Automation from the GAC) and runs app\main.ps1 from the folder next to it.
 // The execution policy is relaxed for this in-process runspace only; nothing system-wide is changed.
@@ -12,8 +12,9 @@ using System.Text;
 using System.Threading;
 using System.Windows.Forms;
 
+// Reza Dadsetan / Doki standalone laptop quality check are replaced per edition by tools\Build-Exe.ps1 (2.6.0, D-034).
 [assembly: AssemblyTitle("Doki")]
-[assembly: AssemblyDescription("Reza Dadsetan - laptop quality-control tool")]
+[assembly: AssemblyDescription("Doki standalone laptop quality check")]
 [assembly: AssemblyCompany("Reza Dadsetan")]
 [assembly: AssemblyProduct("Doki")]
 [assembly: AssemblyCopyright("Reza Dadsetan")]

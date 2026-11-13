@@ -1,4 +1,4 @@
-﻿# Manual checklist screen (Phase 3, P1): rows with OK / Problem toggles, plus offline helpers:
+# Manual checklist screen (Phase 3, P1): rows with OK / Problem toggles, plus offline helpers:
 # full-screen color test, on-screen keyboard tester, test sound, camera app, sound settings.
 # Dot-sourced by Ui.ps1. Same rules: ASCII only, every handler wrapped in Invoke-WkUiSafe.
 
@@ -29,10 +29,15 @@ function Build-WkManualPanel {
     $panel.Children.Clear()
     if (-not $global:WkState.checks.manual) { $global:WkState.checks.manual = @{} }
     # Unary comma keeps one-pair lists nested (@(@(a,b)) would flatten to @(a,b)).
+    # 2.6.0 (#10): the speaker test lives here only (left / right / both tones, optional video), not on the stress screen.
+    $spk = @(@('playLeft', 'stress.left'), @('playRight', 'stress.right'), @('playBoth', 'stress.both'))
+    $vf = Get-WkSoundFile 'speaker_test'
+    if ($vf -and (Test-WkVideoFile $vf)) { $spk += , @('playVideo', 'stress.playVideo') }
+    $spk += , @('openSound', 'manual.openSound')
     $helpers = @{
         display = , @('testScreen', 'manual.testScreen')
         keyboard = , @('testKeyboard', 'manual.testKeyboard')
-        speakers = @(@('playSound', 'manual.playSound'), @('openSound', 'manual.openSound'))
+        speakers = $spk
         microphone = , @('openSound', 'manual.openSound')
         camera = , @('openCamera', 'manual.openCamera')
     }
@@ -40,6 +45,17 @@ function Build-WkManualPanel {
         $card = New-Object System.Windows.Controls.Border
         $card.Style = $global:WkWindow.FindResource('Card'); $card.Padding = '18,10'; $card.Margin = '8,4'
         $card.Name = 'ManCard_' + $it
+        # Keyboard (#10): click a row, then O = OK, P = Problem (same gates as the buttons).
+        $card.Focusable = $true; $card.DataContext = $it
+        $card.Add_MouseLeftButtonDown({ param($s, $e) Invoke-WkUiSafe { [void]$s.Focus() } })
+        $card.Add_KeyDown({ param($s, $e) Invoke-WkUiSafe {
+            $item = [string]$s.DataContext
+            if ($item -eq 'physical') { return }
+            if ($e.Key -eq 'O') { Set-WkManualValue $item 'ok'; $e.Handled = $true }
+            elseif ($e.Key -eq 'P') { Set-WkManualValue $item 'fail'; $e.Handled = $true }
+        } })
+        $card.Add_GotKeyboardFocus({ param($s, $e) Invoke-WkUiSafe { $s.BorderBrush = Get-WkBrush 'C.Accent' } })
+        $card.Add_LostKeyboardFocus({ param($s, $e) Invoke-WkUiSafe { Update-WkManualPanel } })
         $g = New-Object System.Windows.Controls.Grid
         $c0 = New-Object System.Windows.Controls.ColumnDefinition; $c0.Width = '*'
         $c1 = New-Object System.Windows.Controls.ColumnDefinition; $c1.Width = 'Auto'
@@ -57,7 +73,7 @@ function Build-WkManualPanel {
         if ($it -eq 'microphone') { [void]$left.Children.Add((New-WkMicMeterUi)) }
         # Phase 11: why OK / Problem are still locked
         $hint = New-Object System.Windows.Controls.TextBlock
-        $hint.Name = 'ManHint_' + $it; $hint.FontSize = 13; $hint.Foreground = Get-WkBrush '#E0560F'; $hint.TextWrapping = 'Wrap'; $hint.Visibility = 'Collapsed'
+        $hint.Name = 'ManHint_' + $it; $hint.FontSize = 13; $hint.Foreground = Get-WkBrush 'C.Amber.Fg'; $hint.TextWrapping = 'Wrap'; $hint.Visibility = 'Collapsed'
         [void]$left.Children.Add($hint)
         $right = New-Object System.Windows.Controls.StackPanel
         $right.Orientation = 'Horizontal'; $right.VerticalAlignment = 'Center'
@@ -95,13 +111,38 @@ function Set-WkManualValue([string]$Item, [string]$Value) {
         $global:WkState.checks.manual[$Item] = $Value
     }
     Update-WkManualPanel
+    Set-WkDirty
+    Update-WkStepper
     # Doki (Phase 8): once every item has a value, point to the report.
     $open = @((Get-WkManualItems) | Where-Object { -not $global:WkState.checks.manual[$_] }).Count
     if ($open -eq 0 -and (Get-Command Invoke-DokiEvent -ErrorAction SilentlyContinue)) { Invoke-DokiEvent 'manualDone' }
 }
 
+# 2.6.0 (#10): leaving the checklist with unchecked items asks first (default: go back).
+function Confirm-WkManualNext {
+    $mp = Get-WkManualProgress $global:WkState.checks.manual (Get-WkRules)
+    if (@($mp.open).Count -gt 0) {
+        $names = (@($mp.open) | ForEach-Object { [string][char]0x2022 + ' ' + (T ('manual.' + $_)) }) -join "`n"
+        $choice = Show-WkChoice (T 'manual.uncheckedTitle') (T 'manual.uncheckedMsg' $names) (T 'manual.goBack') (T 'manual.continueAnyway')
+        if ($choice -ne 'secondary') { return }
+    }
+    Show-WkScreen 'ScreenReport'
+}
+
+function Update-WkManualCounter {
+    $u = $global:WkUi
+    if (-not $u.ManualCounter) { return }
+    $mp = Get-WkManualProgress $global:WkState.checks.manual (Get-WkRules)
+    $u.ManualCounter.Text = T 'manual.counter' $mp.done $mp.total
+    $u.ManualProgress.Value = 0; if ($mp.total -gt 0) { $u.ManualProgress.Value = $mp.done / $mp.total }
+    $c = 'C.Brand'; if ($mp.failed -gt 0) { $c = 'C.Red.Fg' } elseif ($mp.done -lt $mp.total) { $c = 'C.Amber.Fg' }
+    $u.ManualProgress.Foreground = Get-WkBrush $c
+    $u.ManualCounter.Foreground = Get-WkBrush $c
+}
+
 function Update-WkManualPanel {
     $m = $global:WkState.checks.manual
+    Update-WkManualCounter
     foreach ($card in $global:WkUi.ManualPanel.Children) {
         $it = ([string]$card.Name).Substring(8)
         $val = $null; if ($m) { $val = $m[$it] }
@@ -115,9 +156,9 @@ function Update-WkManualPanel {
             foreach ($b in $right.Children) {
                 $o = ([string]$b.Name).Substring(13)
                 if ($sel -contains $o) {
-                    $c = '#E0560F'; if ($o -eq 'ok') { $c = '#06D170' } elseif ($o -eq 'broken') { $c = '#E5484D' }
-                    $b.Background = Get-WkBrush $c; $b.Foreground = Get-WkBrush '#FFFFFF'
-                } else { $b.Background = Get-WkBrush '#FFFFFF'; $b.Foreground = Get-WkBrush '#252A3C' }
+                    $c = 'C.Amber.Fg'; if ($o -eq 'ok') { $c = 'C.Brand' } elseif ($o -eq 'broken') { $c = 'C.Red.Fg' }
+                    $b.Background = Get-WkBrush $c; $b.Foreground = Get-WkBrush 'C.White'
+                } else { $b.Background = Get-WkBrush 'C.Surface'; $b.Foreground = Get-WkBrush 'C.Text' }
             }
             continue
         }
@@ -127,9 +168,9 @@ function Update-WkManualPanel {
         foreach ($b in $right.Children) {
             $isOk = ([string]$b.Name).EndsWith('_ok')
             $on = ($isOk -and $val -eq 'ok') -or (-not $isOk -and $val -eq 'fail')
-            if ($on -and $isOk) { $b.Background = Get-WkBrush '#06D170'; $b.Foreground = Get-WkBrush '#FFFFFF' }
-            elseif ($on) { $b.Background = Get-WkBrush '#E5484D'; $b.Foreground = Get-WkBrush '#FFFFFF' }
-            else { $b.Background = Get-WkBrush '#FFFFFF'; $b.Foreground = Get-WkBrush '#252A3C' }
+            if ($on -and $isOk) { $b.Background = Get-WkBrush 'C.Brand'; $b.Foreground = Get-WkBrush 'C.White' }
+            elseif ($on) { $b.Background = Get-WkBrush 'C.Red.Fg'; $b.Foreground = Get-WkBrush 'C.White' }
+            else { $b.Background = Get-WkBrush 'C.Surface'; $b.Foreground = Get-WkBrush 'C.Text' }
             $en = $gate.fail; if ($isOk) { $en = $gate.ok }
             $b.IsEnabled = ($en -or $on); if ($b.IsEnabled) { $b.Opacity = 1.0 } else { $b.Opacity = 0.4 }
         }
@@ -140,6 +181,7 @@ function Update-WkManualPanel {
             if ($hk) { $hint.Text = T $hk; $hint.Visibility = 'Visible' } else { $hint.Visibility = 'Collapsed' }
         }
     }
+    foreach ($card in $global:WkUi.ManualPanel.Children) { if ($card.IsKeyboardFocused) { $card.BorderBrush = Get-WkBrush 'C.Accent' } }
 }
 
 # Phase 11: helper test progress per item ('started' | 'done'; never goes back from done).
@@ -151,7 +193,6 @@ function Set-WkManualProgress([string]$Item, [string]$State) {
     $p[$Item] = $State
     Write-WkLog ('manual test ' + $Item + ': ' + $State)
     if ($global:WkUi.ManualPanel.Children.Count -gt 0) { Update-WkManualPanel }
-    if (Get-Command Update-WkSpeakerRow -ErrorAction SilentlyContinue) { Update-WkSpeakerRow }
 }
 
 # Speaker test from the checklist or the stress screen: started now, done when the test sound plays to its end.
@@ -176,12 +217,12 @@ function New-WkMicMeterUi {
     $sp.Margin = '0,6,0,2'
     $track = New-Object System.Windows.Controls.Border
     $track.Width = 280; $track.Height = 12; $track.CornerRadius = 6; $track.HorizontalAlignment = 'Left'
-    $track.Background = Get-WkBrush '#E3E5EC'
+    $track.Background = Get-WkBrush 'C.Mic.Track'
     $fill = New-Object System.Windows.Controls.Border
-    $fill.Width = 0; $fill.Height = 12; $fill.CornerRadius = 6; $fill.HorizontalAlignment = 'Left'; $fill.Background = Get-WkBrush '#9AA0B4'
+    $fill.Width = 0; $fill.Height = 12; $fill.CornerRadius = 6; $fill.HorizontalAlignment = 'Left'; $fill.Background = Get-WkBrush 'C.Mic.Idle'
     $track.Child = $fill
     $status = New-Object System.Windows.Controls.TextBlock
-    $status.FontSize = 13; $status.Foreground = Get-WkBrush '#6B7080'; $status.Margin = '0,4,0,0'; $status.TextWrapping = 'Wrap'
+    $status.FontSize = 13; $status.Foreground = Get-WkBrush 'C.Muted'; $status.Margin = '0,4,0,0'; $status.TextWrapping = 'Wrap'
     [void]$sp.Children.Add($track); [void]$sp.Children.Add($status)
     $global:WkMicFill = $fill; $global:WkMicStatus = $status; $global:WkMicTrack = $track
     return $sp
@@ -202,7 +243,7 @@ function Start-WkMicMeter {
     Set-WkManualProgress 'microphone' 'started'
     if (-not $ok) {
         $k = 'mic.error'; if ($err -eq 'nodevice') { $k = 'mic.noDevice' } elseif ($err -eq 'denied') { $k = 'mic.denied' }
-        $global:WkMicStatus.Text = T $k $err; $global:WkMicStatus.Foreground = Get-WkBrush '#E5484D'
+        $global:WkMicStatus.Text = T $k $err; $global:WkMicStatus.Foreground = Get-WkBrush 'C.Red.Fg'
         Write-WkLog ('mic meter failed: ' + $err) 'WARN'
         return
     }
@@ -220,8 +261,8 @@ function Start-WkMicMeter {
 
 function Update-WkMicStatus {
     $p = $null; if ($global:WkState.checks.manualProgress) { $p = $global:WkState.checks.manualProgress['microphone'] }
-    if ($p -eq 'done') { $global:WkMicStatus.Text = T 'mic.heard' $global:WkMicDevice; $global:WkMicStatus.Foreground = Get-WkBrush '#04A85A' }
-    else { $global:WkMicStatus.Text = T 'mic.listening' $global:WkMicDevice; $global:WkMicStatus.Foreground = Get-WkBrush '#6B7080' }
+    if ($p -eq 'done') { $global:WkMicStatus.Text = T 'mic.heard' $global:WkMicDevice; $global:WkMicStatus.Foreground = Get-WkBrush 'C.Green.Fg' }
+    else { $global:WkMicStatus.Text = T 'mic.listening' $global:WkMicDevice; $global:WkMicStatus.Foreground = Get-WkBrush 'C.Muted' }
 }
 
 function Update-WkMicMeter {
@@ -235,7 +276,7 @@ function Update-WkMicMeter {
     if ($target -gt $global:WkMicShown) { $global:WkMicShown = $target } else { $global:WkMicShown = [math]::Max($target, $global:WkMicShown * 0.82) }
     $w = $global:WkMicTrack.Width
     $global:WkMicFill.Width = [math]::Round($w * $global:WkMicShown)
-    if ($peak -ge $thr) { $global:WkMicFill.Background = Get-WkBrush '#06D170'; $global:WkMicVoice++ } else { $global:WkMicFill.Background = Get-WkBrush '#9AA0B4' }
+    if ($peak -ge $thr) { $global:WkMicFill.Background = Get-WkBrush 'C.Brand'; $global:WkMicVoice++ } else { $global:WkMicFill.Background = Get-WkBrush 'C.Mic.Idle' }
     if ($global:WkMicVoice -ge $need) {
         $before = $null; if ($global:WkState.checks.manualProgress) { $before = $global:WkState.checks.manualProgress['microphone'] }
         if ($before -ne 'done') { Set-WkManualProgress 'microphone' 'done'; Update-WkMicStatus }
@@ -253,6 +294,10 @@ function Invoke-WkManualHelper([string]$Action) {
         'testScreen'   { Show-WkColorTest }
         'testKeyboard' { Show-WkKeyboardTest }
         'playSound'    { Invoke-WkSpeakerSide 'both' }
+        'playLeft'     { Invoke-WkSpeakerSide 'left' }
+        'playRight'    { Invoke-WkSpeakerSide 'right' }
+        'playBoth'     { Invoke-WkSpeakerSide 'both' }
+        'playVideo'    { Invoke-WkSpeakerVideoUi }
         'openCamera'   { Start-Process 'microsoft.windows.camera:'; Set-WkManualProgress 'camera' 'started' }
         'openSound'    { Start-Process 'ms-settings:sound' }
     }
@@ -302,15 +347,17 @@ function Show-WkKeyboardTest {
     $wide = @{ Back = 2; Tab = 1.5; Capital = 1.8; Return = 2.2; LeftShift = 2.3; RightShift = 2.6; Space = 6; Oem5 = 1.5 }
 
     $w = New-Object System.Windows.Window
-    $w.Title = T 'manual.kbTitle'; $w.Width = 1080; $w.Height = 650; $w.MinHeight = 600; $w.WindowStartupLocation = 'CenterOwner'
-    $w.Owner = $global:WkWindow; $w.Background = Get-WkBrush '#F7F8FA'; $w.FontFamily = 'Segoe UI, Tahoma'
+    # 2.6.1: 15% larger than 1080x520 so the Done button always fits; never larger than the screen work area.
+    $wa = [System.Windows.SystemParameters]::WorkArea
+    $w.Title = T 'manual.kbTitle'; $w.Width = [math]::Min(1242, $wa.Width); $w.Height = [math]::Min(598, $wa.Height); $w.WindowStartupLocation = 'CenterOwner'
+    $w.Owner = $global:WkWindow; $w.Background = Get-WkBrush 'C.Bg'; $w.FontFamily = 'Segoe UI, Tahoma'
     $root = New-Object System.Windows.Controls.StackPanel
     $root.Margin = '20'
     $hint = New-Object System.Windows.Controls.TextBlock
     $hint.Text = T 'manual.kbHint'; $hint.FontSize = 16; $hint.Margin = '0,0,0,6'
     if (Test-WkRtl) { $hint.FlowDirection = 'RightToLeft' }
     $count = New-Object System.Windows.Controls.TextBlock
-    $count.FontSize = 15; $count.FontWeight = 'SemiBold'; $count.Foreground = Get-WkBrush '#04A85A'; $count.Margin = '0,0,0,12'
+    $count.FontSize = 15; $count.FontWeight = 'SemiBold'; $count.Foreground = Get-WkBrush 'C.Green.Fg'; $count.Margin = '0,0,0,12'
     if (Test-WkRtl) { $count.FlowDirection = 'RightToLeft' }
     [void]$root.Children.Add($hint); [void]$root.Children.Add($count)
 
@@ -324,7 +371,7 @@ function Show-WkKeyboardTest {
             $bd = New-Object System.Windows.Controls.Border
             $f = 1.0; if ($wide.ContainsKey($k)) { $f = [double]$wide[$k] }
             $bd.Width = 62 * $f; $bd.Height = 52; $bd.Margin = '3,0'; $bd.CornerRadius = 8
-            $bd.Background = Get-WkBrush '#FFFFFF'; $bd.BorderBrush = Get-WkBrush '#DADCE5'; $bd.BorderThickness = 1.5
+            $bd.Background = Get-WkBrush 'C.Surface'; $bd.BorderBrush = Get-WkBrush 'C.Input'; $bd.BorderThickness = 1.5
             $tx = New-Object System.Windows.Controls.TextBlock
             $lab = $k; if ($labels.ContainsKey($k)) { $lab = $labels[$k] } elseif ($k -match '^D\d$') { $lab = $k.Substring(1) }
             $tx.Text = $lab; $tx.FontSize = 15; $tx.HorizontalAlignment = 'Center'; $tx.VerticalAlignment = 'Center'
@@ -335,11 +382,18 @@ function Show-WkKeyboardTest {
         }
         [void]$root.Children.Add($rp)
     }
+    $missing = New-Object System.Windows.Controls.CheckBox
+    $missing.Content = T 'manual.kbMissingKeys'; $missing.Margin = '0,12,0,0'; $missing.FontSize = 15
+    $missing.Focusable = $false; $missing.Name = 'KbMissingKeys'
+    if (Test-WkRtl) { $missing.FlowDirection = 'RightToLeft' }
+    [void]$root.Children.Add($missing)
     $done = New-Object System.Windows.Controls.Button
     $done.Style = $global:WkWindow.FindResource('Primary'); $done.Content = T 'manual.kbDone'; $done.Margin = '0,16,0,0'
-    $done.HorizontalAlignment = 'Left'; $done.MinWidth = 180; $done.Focusable = $false; $done.Name = 'KbDone'
+    $done.HorizontalAlignment = 'Left'; $done.Focusable = $false; $done.Name = 'KbDone'
     [void]$root.Children.Add($done)
-    $w.Content = $root
+    $scroll = New-Object System.Windows.Controls.ScrollViewer
+    $scroll.VerticalScrollBarVisibility = 'Auto'; $scroll.Content = $root
+    $w.Content = $scroll
 
     $global:WkKbWin = $w; $global:WkKbCount = $count; $global:WkKbTotal = $total; $global:WkKbHit = @{}
     $count.Text = T 'manual.kbCount' 0 $total
@@ -352,7 +406,7 @@ function Show-WkKeyboardTest {
         $id = [int]$k
         if ($global:WkKbKeys.ContainsKey($id)) {
             $b = $global:WkKbKeys[$id]
-            $b.Background = Get-WkBrush '#06D170'; $b.BorderBrush = Get-WkBrush '#04A85A'; $b.Child.Foreground = Get-WkBrush '#FFFFFF'
+            $b.Background = Get-WkBrush 'C.Brand'; $b.BorderBrush = Get-WkBrush 'C.Green.Fg'; $b.Child.Foreground = Get-WkBrush 'C.White'
             $global:WkKbHit[$id] = $true
             $global:WkKbCount.Text = T 'manual.kbCount' $global:WkKbHit.Count $global:WkKbTotal
         }
@@ -364,6 +418,10 @@ function Show-WkKeyboardTest {
     # A fully pressed keyboard marks the checklist item OK automatically (the technician can still change it).
     if ($global:WkKbHit.Count -ge $global:WkKbTotal) {
         Set-WkManualProgress 'keyboard' 'done'
-        if (-not $global:WkState.checks.manual) { $global:WkState.checks.manual = @{} }; $global:WkState.checks.manual['keyboard'] = 'ok'; Update-WkManualPanel
+        if (-not $global:WkState.checks.manual) { $global:WkState.checks.manual = @{} }; $global:WkState.checks.manual['keyboard'] = 'ok'; Update-WkManualPanel; Set-WkDirty; Update-WkStepper
+    } elseif ($missing.IsChecked -eq $true) {
+        # Explicit layout confirmation unlocks the result; technician still chooses OK/Problem.
+        Set-WkManualProgress 'keyboard' 'done'
+        Update-WkManualPanel
     }
 }

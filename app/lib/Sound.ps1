@@ -1,4 +1,4 @@
-﻿# Sounds (Phase 4, D-019). Optional user files in assets\sounds\ (names in rules.json "sounds.files"):
+# Sounds (Phase 4, D-019). Optional user files in assets\sounds\ (names in rules.json "sounds.files"):
 #   guest_welcome  - played when a guest presses Start (guest_welcome.mp3, Phase 12)
 #   speaker_test   - played by the speaker test (left / right / both); fallback: a generated 440 Hz stereo tone
 #   test_done      - a stress test finished OK

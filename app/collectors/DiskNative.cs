@@ -1,4 +1,4 @@
-﻿// Disk health straight from the drive, no third-party tools (Phase 4, D-016). C# 5 only (Add-Type with .NET Framework csc).
+// Disk health straight from the drive, no third-party tools (Phase 4, D-016). C# 5 only (Add-Type with .NET Framework csc).
 // NVMe: SMART / Health Information log (log page 0x02) through IOCTL_STORAGE_QUERY_PROPERTY with
 // StorageDeviceProtocolSpecificProperty. The handle is opened with access 0, which Windows allows without administrator.
 using System;

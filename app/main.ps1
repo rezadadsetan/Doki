@@ -16,14 +16,29 @@ $ErrorActionPreference = 'Continue'
 $global:WkApp = $PSScriptRoot
 $global:WkRoot = Split-Path -Parent $PSScriptRoot
 
-# Module list is global so background runspaces can load the same files.
-$global:WkModules = @(
-    'lib\Common.ps1', 'lib\I18n.ps1', 'lib\Sound.ps1', 'lib\Offline.ps1',
+. (Join-Path $PSScriptRoot 'lib\Common.ps1')
+
+# 2.6.0 (D-034): organization modules load only when the edition enables them AND the file ships (the standalone build omits them).
+function Resolve-WkModules([string[]]$Rel) {
+    return @($Rel | ForEach-Object { Join-Path $PSScriptRoot $_ } | Where-Object { Test-Path -LiteralPath $_ })
+}
+$edf = (Get-WkEdition).features
+$rel = @('lib\Common.ps1', 'lib\I18n.ps1', 'lib\Sound.ps1',
     'collectors\SystemInfo.ps1', 'collectors\Battery.ps1', 'collectors\Disk.ps1',
     'collectors\Drivers.ps1', 'collectors\Updates.ps1', 'collectors\DeviceFacts.ps1', 'lib\Monitor.ps1',
-    'rules\Evaluate.ps1', 'rules\Grade.ps1', 'stress\Stress.ps1', 'report\Report.ps1'
-) | ForEach-Object { Join-Path $PSScriptRoot $_ } | Where-Object { Test-Path -LiteralPath $_ }
-foreach ($m in $global:WkModules) { . $m }
+    'rules\Evaluate.ps1', 'rules\Grade.ps1', 'stress\Stress.ps1', 'report\Report.ps1')
+if ($edf.updater) { $rel += 'update\Update.ps1' }
+if ($edf.deploy) { $rel += 'deploy\Deploy.ps1' }
+if ($edf.jira -or $edf.corporateEmail) { $rel += 'report\Jira.ps1' }
+$global:WkModules = Resolve-WkModules $rel
+# Background runspaces load only what their job needs (2.6.0, #2): parsing all modules cost ~1 s per runspace.
+$global:WkCollectorModules = Resolve-WkModules @('lib\Common.ps1', 'collectors\SystemInfo.ps1', 'collectors\Battery.ps1', 'collectors\Disk.ps1',
+    'collectors\Drivers.ps1', 'collectors\Updates.ps1', 'collectors\DeviceFacts.ps1')
+$global:WkReportModules = Resolve-WkModules @('lib\Common.ps1', 'lib\I18n.ps1', 'collectors\SystemInfo.ps1', 'collectors\DeviceFacts.ps1',
+    'rules\Evaluate.ps1', 'rules\Grade.ps1', 'report\Report.ps1')
+$global:WkJiraModules = Resolve-WkModules @('lib\Common.ps1', 'lib\I18n.ps1', 'report\Jira.ps1')
+$global:WkUpdateModules = Resolve-WkModules @('lib\Common.ps1', 'update\Update.ps1')
+foreach ($m in $global:WkModules) { if ($m -notlike '*\lib\Common.ps1') { . $m } }
 
 Set-WkLanguage $Lang
 Write-WkLog ('start v{0} admin={1} args: SelfTest={2} StressSelfTest={3} SkipUpdates={4}' -f $global:WkVersion, (Test-WkAdmin), $SelfTest, $StressSelfTest, $SkipUpdates)

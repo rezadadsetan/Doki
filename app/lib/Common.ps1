@@ -3,7 +3,7 @@
 
 if (-not $global:WkApp) { $global:WkApp = Split-Path -Parent $PSScriptRoot }      # ...\app
 if (-not $global:WkRoot) { $global:WkRoot = Split-Path -Parent $global:WkApp }     # portable folder
-$global:WkVersion = '2.5.0'   # overridden by app\version.json (written by the CI build) at the end of this file
+$global:WkVersion = '0.0.0-dev'   # overridden by app\version.json (stamped by tools\Build-Exe.ps1) at the end of this file
 $global:WkBuild = @{ version = $global:WkVersion; buildDate = ''; commit = ''; channel = 'dev' }
 
 function Get-WkWritableDir([string]$Name) {
@@ -43,8 +43,90 @@ function Write-WkJson([string]$Path, $Object) {
 }
 
 function Get-WkRules {
-    if (-not $global:WkRules) { $global:WkRules = Read-WkJson (Join-Path $global:WkRoot 'config\rules.json') }
+    if (-not $global:WkRules) {
+        $r = Read-WkJson (Join-Path $global:WkRoot 'config\rules.json')
+        # 2.6.0 (D-034): organization values live in config\org.json (org edition only) and override the generic rules.
+        $o = Get-WkOrg
+        if ($o) {
+            try { if ($o.paths) { $r.paths = $o.paths } } catch { }
+            try { if ($o.followupUrl -and $r.followup) { $r.followup.url = [string]$o.followupUrl } } catch { }
+            # 2.7.0/2.8.0: org rule overrides (grades C/D, stress-optional grading, cycle alarm) merged key by key.
+            foreach ($sec in @('grading', 'battery', 'disk')) { try { if ($o.$sec) { Merge-WkObject $r.$sec $o.$sec } } catch { } }
+        }
+        # 2.8.0: local settings from the Settings screen (org flag "settings"), applied last.
+        if ((Get-WkEdition).features.settings -and -not $global:WkSkipSettings) {
+            $st = Get-WkSettings
+            if ($st) {
+                if ($null -ne $st.batteryMinHealth) { Merge-WkObject $r.battery ([pscustomobject]@{ min_health_percent = [double]$st.batteryMinHealth }) }
+                if ($null -ne $st.cycleAlarm) { Merge-WkObject $r.battery ([pscustomobject]@{ cycle_alarm = [int]$st.cycleAlarm }) }
+                if ($null -ne $st.diskMinHealth) { Merge-WkObject $r.disk ([pscustomobject]@{ min_health_percent = [double]$st.diskMinHealth }) }
+            }
+        }
+        $global:WkRules = $r
+    }
     return $global:WkRules
+}
+
+# Copies the properties of $Source into $Target (PSCustomObjects from JSON); nested objects are merged, everything else replaced.
+function Merge-WkObject($Target, $Source) {
+    if (-not $Target -or -not $Source) { return }
+    foreach ($p in @($Source.PSObject.Properties)) {
+        if ($p.Name -like '_*') { continue }
+        $cur = $Target.PSObject.Properties[$p.Name]
+        if ($cur -and $cur.Value -is [pscustomobject] -and $p.Value -is [pscustomobject]) { Merge-WkObject $cur.Value $p.Value }
+        elseif ($cur) { $cur.Value = $p.Value }
+        else { $Target | Add-Member -NotePropertyName $p.Name -NotePropertyValue $p.Value -Force }
+    }
+}
+
+# 2.8.0: config\settings.json { batteryMinHealth; diskMinHealth; cycleAlarm } written by the Settings screen. $null when absent.
+function Get-WkSettingsPath { return (Join-Path $global:WkRoot 'config\settings.json') }
+function Get-WkSettings {
+    try { $p = Get-WkSettingsPath; if (Test-Path -LiteralPath $p) { return (Read-WkJson $p) } } catch { }
+    return $null
+}
+
+# ---------------- editions (2.6.0, D-034) ----------------
+# config\edition.json: { edition: org|standalone, features: {...} }. Missing file = standalone (no organization features).
+$global:WkFeatureNames = @('staffLogin', 'corporateEmail', 'jira', 'deploy', 'updater', 'followup', 'contacts', 'github', 'footerCredit', 'warranty', 'contractorLabel', 'settings', 'finishWindow')
+
+function ConvertTo-WkEdition($Raw) {
+    $f = @{}
+    foreach ($n in $global:WkFeatureNames) { $f[$n] = $false }
+    $f.footerCredit = $true
+    $name = 'standalone'
+    if ($Raw) {
+        if ($Raw.edition) { $name = [string]$Raw.edition }
+        if ($Raw.features) { foreach ($p in $Raw.features.PSObject.Properties) { $f[$p.Name] = [bool]$p.Value } }
+    }
+    return @{ edition = $name; features = $f }
+}
+
+function Get-WkEdition {
+    if (-not $global:WkEditionCache) {
+        $raw = $null
+        try { $p = Join-Path $global:WkRoot 'config\edition.json'; if (Test-Path -LiteralPath $p) { $raw = Read-WkJson $p } } catch { }
+        $global:WkEditionCache = ConvertTo-WkEdition $raw
+    }
+    return $global:WkEditionCache
+}
+
+# A feature is on when the edition enables it AND the module behind it is loaded (the standalone build does not ship them).
+function Test-WkFeature([string]$Name) {
+    if (-not (Get-WkEdition).features[$Name]) { return $false }
+    $need = @{ jira = 'Send-WkSupportTicket'; deploy = 'Invoke-WkRename'; updater = 'Get-DokiLatestRelease'; corporateEmail = 'Test-WkCorporateEmail' }
+    if ($need.ContainsKey($Name) -and -not (Get-Command $need[$Name] -ErrorAction SilentlyContinue)) { return $false }
+    return $true
+}
+
+# config\org.json (org edition only): paths, follow-up URL, GitHub URL, contacts, staff e-mails. $null when absent.
+function Get-WkOrg {
+    if ($null -eq $global:WkOrgCache) {
+        $global:WkOrgCache = $false
+        try { $p = Join-Path $global:WkRoot 'config\org.json'; if (Test-Path -LiteralPath $p) { $global:WkOrgCache = Read-WkJson $p } } catch { }
+    }
+    if ($global:WkOrgCache) { return $global:WkOrgCache }
+    return $null
 }
 
 function Test-WkAdmin {

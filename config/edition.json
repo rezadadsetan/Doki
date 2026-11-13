@@ -1,0 +1,18 @@
+{
+    "edition":  "standalone",
+    "features":  {
+                     "staffLogin":  false,
+                     "corporateEmail":  false,
+                     "jira":  false,
+                     "deploy":  false,
+                     "updater":  false,
+                     "followup":  false,
+                     "contacts":  false,
+                     "github":  false,
+                     "footerCredit":  true,
+                     "warranty":  false,
+                     "contractorLabel":  false,
+                     "settings":  false,
+                     "finishWindow":  false
+                 }
+}

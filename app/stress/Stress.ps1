@@ -1,4 +1,4 @@
-﻿# Stress tests (D-011): CPU/RAM/Disk via WonderKid.StressRunner (C#, Add-Type), GPU via an Edge app window (D-002).
+# Stress tests (D-011): CPU/RAM/Disk via WonderKid.StressRunner (C#, Add-Type), GPU via an Edge app window (D-002).
 # The UI polls Get-WkStressState every 500 ms; nothing here blocks for long.
 
 function Initialize-WkStressType {
@@ -139,7 +139,9 @@ function Get-WkStressState {
     return $s
 }
 
-function Stop-WkStress {
+# 2.6.0 (#3): the UI only signals the stop (no 15 s wait on the UI thread); Get-WkStressState reports "stopped" when the
+# worker threads have finished. -Wait is used on window close / self-test only.
+function Stop-WkStress([switch]$Wait) {
     $s = $global:WkStressCurrent
     if (-not $s) { return }
     if ($s.kind -eq 'gpu') {
@@ -149,13 +151,13 @@ function Stop-WkStress {
     }
     if ($global:WkRunner -and $global:WkRunner.IsRunning) {
         $global:WkRunner.Stop()
-        [void]$global:WkRunner.Wait(15000)
+        if ($Wait) { [void]$global:WkRunner.Wait(15000) }
     }
 }
 
 # Called on window close: stop everything and remove leftovers.
 function Clear-WkStress {
-    try { Stop-WkStress } catch { }
+    try { Stop-WkStress -Wait } catch { }
     try { Stop-WkGpuProcesses } catch { }
     try { Get-ChildItem -Path $env:TEMP -Filter 'stress_*.bin' -ErrorAction SilentlyContinue | Remove-Item -Force -ErrorAction SilentlyContinue } catch { }
 }
@@ -171,7 +173,7 @@ function Invoke-WkStressSelfTest([int]$Seconds = 10) {
             Start-Sleep -Milliseconds 500
             $s = Get-WkStressState
         }
-        if ($s.status -eq 'running') { Stop-WkStress; $s = Get-WkStressState; $s.error = 'self-test deadline' }
+        if ($s.status -eq 'running') { Stop-WkStress -Wait; $s = Get-WkStressState; $s.error = 'self-test deadline' }
         $out[$k] = @{ result = $s.status; errors = $s.errors; detail = $s.detail; error = $s.error; mbps = $s.mbps; gb = $s.gb; threads = $s.threads }
     }
     [GC]::Collect()

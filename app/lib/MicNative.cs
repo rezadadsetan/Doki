@@ -1,4 +1,4 @@
-﻿// Live microphone level for the checklist (Phase 11). Windows Core Audio (WASAPI): opens a shared capture stream on the
+// Live microphone level for the checklist (Phase 11). Windows Core Audio (WASAPI): opens a shared capture stream on the
 // default recording device and reads IAudioMeterInformation.GetPeakValue (0..1), the same level Windows Settings shows.
 // Captured audio is discarded immediately (never stored or sent). C# 5 only (built-in csc). Compiled into
 // app\native\WonderKid.Native.dll by tools\Build-Exe.ps1; the dev tree falls back to Add-Type of this file.

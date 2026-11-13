@@ -1,4 +1,4 @@
-﻿# Get-WkDisks: one row per physical disk with an automatic health % (Phase 4, D-016), no third-party tools:
+# Get-WkDisks: one row per physical disk with an automatic health % (Phase 4, D-016), no third-party tools:
 #   1. NVMe SMART/Health log via IOCTL (DiskNative.cs, works without admin)   -> healthSource 'nvme-log'
 #   2. Windows reliability counter Wear (admin)                                -> 'windows-wear'
 #   3. SATA SMART attributes from WMI MSStorageDriver_ATAPISmartData (admin)  -> 'smart-attr' (SSD wear) or 'smart-estimate' (HDD)

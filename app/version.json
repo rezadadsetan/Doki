@@ -1,1 +1,7 @@
-{"version":"1.0.1","channel":"standalone","buildDate":"2026-11-04","commit":""}
+{
+    "version":  "2.9.0",
+    "buildDate":  "2026-11-10 15:50",
+    "commit":  "4bc76a2",
+    "channel":  "standalone",
+    "edition":  "standalone"
+}

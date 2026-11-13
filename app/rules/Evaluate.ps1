@@ -1,4 +1,4 @@
-﻿# Get-WkVerdict: turns collector results (+ stress results) into card statuses and an overall verdict.
+# Get-WkVerdict: turns collector results (+ stress results) into card statuses and an overall verdict.
 # Status values: green | amber | red | grey. Reasons are i18n keys + args (+ optional subject) so the UI and report translate them.
 # Works with hashtables (live data) and PSCustomObjects (JSON fixtures) because it only uses dot access.
 
@@ -25,6 +25,9 @@ function Get-WkBatteryVerdict($Res, $Rules) {
     if ($null -ne $d.cycles -and [int]$d.cycles -gt $maxC) { $reasons += New-WkReason 'battery.reasonCycles' @($d.cycles, $maxC) }
     if ($reasons.Count -gt 0) { return @{ status = 'red'; reasons = @(@(New-WkReason 'battery.replace') + $reasons) } }
     if ($null -eq $d.healthPercent) { return @{ status = 'amber'; reasons = @(New-WkReason 'battery.unmeasured') } }
+    # 2.8.0: cycle alarm (org: battery.cycle_alarm, Settings screen) -> amber, below the red max_cycles rule.
+    $alarm = $Rules.battery.cycle_alarm
+    if ($null -ne $alarm -and $null -ne $d.cycles -and [int]$d.cycles -gt [int]$alarm) { return @{ status = 'amber'; reasons = @(New-WkReason 'battery.reasonCycleAlarm' @($d.cycles, [int]$alarm)) } }
     return @{ status = 'green'; reasons = @(New-WkReason 'battery.ok') }
 }
 

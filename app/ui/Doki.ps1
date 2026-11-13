@@ -1,4 +1,4 @@
-﻿# Doki, the assistant mascot (Phase 8, D-026). Dot-sourced by Ui.ps1. ASCII only; all text comes from i18n keys "doki.*".
+# Doki, the assistant mascot (Phase 8, D-026). Dot-sourced by Ui.ps1. ASCII only; all text comes from i18n keys "doki.*".
 # One shared panel (DokiPanel) is re-parented between the Home host (large, beside the login card) and the side column (compact),
 # so it never overlaps a card or a button. Everything is local and scripted: no network, no AI service.
 #
@@ -104,7 +104,7 @@ function Get-DokiMessage($State) {
         'saved'   { return @{ key = 'doki.report.saved'; args = @(); mood = 'celebrate' } }
         'deploy'  { if ($State.step) { return @{ key = ('doki.deploy.' + [string]$State.step); args = @(); mood = 'pointing' } }; return @{ key = $null; args = @(); mood = $null } }
         'followAsk'   { return @{ key = 'doki.follow.ask'; args = @(); mood = 'pointing' } }
-        'followBimax' { return @{ key = 'doki.follow.bimax'; args = @(); mood = 'happy' } }
+        'followPortal' { return @{ key = 'doki.follow.portal'; args = @(); mood = 'happy' } }
         'followDone'  { return @{ key = 'doki.follow.done'; args = @(); mood = 'happy' } }
         'history' { return @{ key = 'doki.history'; args = @(); mood = 'hello' } }
         'about'   { return @{ key = 'doki.about'; args = @(); mood = 'hello' } }
@@ -141,7 +141,7 @@ function Get-DokiImage([string]$Mood, [switch]$Small) {
         $bi.BeginInit()
         $bi.UriSource = [Uri]$file
         $bi.CacheOption = [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
-        if ($Small) { $bi.DecodePixelWidth = 256 } else { $bi.DecodePixelWidth = 512 }
+        if ($Small) { $bi.DecodePixelWidth = 192 }   # 2.6.0: one 320 px set; the side figure (110 DIP) decodes smaller
         $bi.EndInit()
         $bi.Freeze()
         $global:DokiImages[$file] = $bi
@@ -332,6 +332,12 @@ function Move-DokiTo([string]$HostName) {
         $u.DokiSideHost.Visibility = 'Collapsed'; $u.DokiHomeHost.Visibility = 'Visible'
         $u.DokiFlip.Height = 220; $u.DokiBubbleBox.MaxWidth = 300; $u.DokiBubbleText.FontSize = 15
     }
+    # 2.6.0 (#7): small windows give the space to the content (Ui.ps1 Update-WkCompact sets $global:WkCompact).
+    $c = $global:WkCompact
+    if ($c) {
+        if ($HostName -eq 'side' -and ($c.short -or $c.narrow)) { $u.DokiSideHost.Visibility = 'Collapsed' }
+        if ($HostName -ne 'side' -and $c.narrow) { $u.DokiHomeHost.Visibility = 'Collapsed' }
+    }
     if ($changed -and $global:DokiState.mood) { Set-DokiMood $global:DokiState.mood -Force }   # swap to the right image size
     Update-DokiFlip
 }
@@ -401,7 +407,13 @@ function Initialize-Doki {
     $m = Get-DokiImage 'hello' -Small
     $master = Join-Path $global:WkRoot 'assets\doki\doki_master.png'
     if (-not (Test-Path -LiteralPath $master)) { $master = Get-DokiPoseFile 'hello' }
-    $mi = $null; if ($master) { try { $mi = New-Object System.Windows.Media.Imaging.BitmapImage ([Uri]$master); $mi.Freeze() } catch { } }
+    $mi = $null
+    if ($master) {
+        try {
+            $mi = New-Object System.Windows.Media.Imaging.BitmapImage
+            $mi.BeginInit(); $mi.UriSource = [Uri]$master; $mi.DecodePixelWidth = 256; $mi.CacheOption = 'OnLoad'; $mi.EndInit(); $mi.Freeze()
+        } catch { $mi = $null }
+    }
     if ($u.TopLogoImg -and $mi) { $u.TopLogoImg.Source = $mi }
     if ($u.AboutDokiImg -and $mi) { $u.AboutDokiImg.Source = $mi }
     if ($u.DokiMuteImg -and $m) { $u.DokiMuteImg.Source = $m }

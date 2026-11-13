@@ -1,4 +1,4 @@
-﻿# Get-WkUpdates: pending Windows updates (WUA COM search in a child job with a hard timeout) + pending reboot.
+# Get-WkUpdates: pending Windows updates (WUA COM search in a child job with a hard timeout) + pending reboot.
 # Definition Updates (Defender "Security Intelligence" signatures, several per day) are listed as ignored, not pending
 # (rules.json updates.ignore_definition_updates, decided by the user in Phase 3).
 

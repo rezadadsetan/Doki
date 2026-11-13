@@ -1,7 +1,7 @@
-﻿# Phase 10 (D-030): physical condition (multi-select) and the S / A+ / A / B grade. Pure functions, numbers in rules.json grading.
+# Phase 10 (D-030): physical condition (multi-select) and the S / A+ / A / B grade. Pure functions, numbers in rules.json grading.
 # ASCII only. Works with hashtables (live) and PSCustomObjects (JSON) like Evaluate.ps1.
 
-$global:WkGradeOrder = @('B', 'A', 'A+', 'S')   # weakest -> best
+$global:WkGradeOrder = @('D', 'C', 'B', 'A', 'A+', 'S')   # weakest -> best (C/D only when the thresholds define B and C: org edition, 2.7.0)
 
 function Get-WkGradingRules($Rules) {
     if ($Rules -and $Rules.grading) { return $Rules.grading }
@@ -70,6 +70,8 @@ function Get-WkGrade($Checks, $Stress, $Verdict, $Rules) {
         $f = Get-WkBandFactor ([double]$bat.data.healthPercent) $g.battery_bands
         $cyc = $bat.data.cycles
         if ($null -ne $cyc -and [int]$cyc -gt [int]$Rules.battery.max_cycles) { $f -= [double]$g.battery_cycles_penalty }
+        # 2.8.0: every started cycle_step above the cycle alarm costs cycle_step_penalty.
+        $f -= Get-WkCyclePenalty $cyc $Rules.battery.cycle_alarm $g.cycle_step $g.cycle_step_penalty
         $cycText = '-'; if ($null -ne $cyc) { $cycText = [string]$cyc }
         & $add 'battery' $f $true 'grade.note.battery' @([string]$bat.data.healthPercent, $cycText)
     }
@@ -83,7 +85,7 @@ function Get-WkGrade($Checks, $Stress, $Verdict, $Rules) {
     elseif ($pcts.Count -eq 0) { & $add 'disk' 0.5 $true 'grade.note.unknown' @() }
     else { $min = ($pcts | Measure-Object -Minimum).Minimum; & $add 'disk' (Get-WkBandFactor $min $g.disk_bands) $true 'grade.note.disk' @([string]$min) }
 
-    # Stress: a quarter per test
+    # Stress: a quarter per test. 2.8.0 (org, grading.stress_optional): tests not run are not counted; S needs all four completed.
     $sum = 0.0; $done = 0; $ran = 0; $bad = $false
     foreach ($k in @('cpu', 'ram', 'disk', 'gpu')) {
         $r = Get-WkStressResult $Stress $k
@@ -94,7 +96,12 @@ function Get-WkGrade($Checks, $Stress, $Verdict, $Rules) {
             { $_ -eq 'errors' -or $_ -eq 'crashed' } { $bad = $true; $ran++ }
         }
     }
-    & $add 'stress' ($sum / 4) $true 'grade.note.stress' @($done)
+    $optional = [bool]$g.stress_optional
+    if ($optional) {
+        if ($ran -eq 0) { & $add 'stress' 0 $false 'grade.note.stressNotRun' @() }
+        else { & $add 'stress' ($sum / $ran) $true 'grade.note.stress' @($done) }
+        if ($done -lt 4) { [void]$caps.Add(@{ id = 'stressForS'; grade = 'A+' }) }
+    } else { & $add 'stress' ($sum / 4) $true 'grade.note.stress' @($done) }
     if ($bad) { [void]$caps.Add(@{ id = 'stress'; grade = 'B' }) }
 
     # Functional checklist (every manual item except "physical")
@@ -139,15 +146,50 @@ function Get-WkGrade($Checks, $Stress, $Verdict, $Rules) {
     foreach ($c in $caps) { if ($global:WkGradeOrder.IndexOf([string]$c.grade) -lt $global:WkGradeOrder.IndexOf($grade)) { $grade = [string]$c.grade } }
 
     $answeredPhys = 0; if ($phys.Count -gt 0) { $answeredPhys = 1 }
-    $complete = ($ran -eq 4) -and ($answered -eq $items.Count) -and ($answeredPhys -eq 1)
+    $complete = (($ran -eq 4) -or $optional) -and ($answered -eq $items.Count) -and ($answeredPhys -eq 1)
     return @{ grade = $grade; score = $score; points = [math]::Round($pts, 1); max = $max; complete = $complete; caps = @($caps); rows = @($rows) }
+}
+
+# 2.8.0: battery factor penalty for cycles above the alarm: every STARTED step counts (301 -> 1 step, 351 -> 2). Pure.
+function Get-WkCyclePenalty($Cycles, $Alarm, $Step, $PerStep) {
+    if ($null -eq $Cycles -or $null -eq $Alarm -or -not $Step -or -not $PerStep) { return 0.0 }
+    $over = [int]$Cycles - [int]$Alarm
+    if ($over -le 0) { return 0.0 }
+    return ([math]::Ceiling($over / [double]$Step) * [double]$PerStep)
 }
 
 function Get-WkGradeForScore([int]$Score, $Thresholds) {
     if ($Score -ge [int]$Thresholds.S) { return 'S' }
     if ($Score -ge [int]$Thresholds.'A+') { return 'A+' }
     if ($Score -ge [int]$Thresholds.A) { return 'A' }
-    return 'B'
+    if ($null -eq $Thresholds.B) { return 'B' }   # four-grade scale (standalone / older configs)
+    if ($Score -ge [int]$Thresholds.B) { return 'B' }
+    if ($null -ne $Thresholds.C -and $Score -ge [int]$Thresholds.C) { return 'C' }
+    return 'D'
+}
+
+# Warranty return (2.7.0, org feature "warranty"). $Config = org.json warranty { rejectGrades; rejectCaps }. Pure.
+# Returns @{ reject = bool; reasons = @(@{ id; arg }) } with ids grade | broken | disk | stress | functional | battery | cosmetic.
+# 2.9.0: $CosmeticDecision ('reject' | 'accept' | $null) = the technician's call on sticker residue / scratches.
+# Returns also cosmeticPending = cosmetic defect present and not decided yet (save is blocked until decided).
+function Get-WkWarrantyDecision($Grade, $Config, $CosmeticDecision = $null) {
+    $out = @{ reject = $false; reasons = @(); cosmetic = $false; cosmeticPending = $false }
+    if (-not $Grade -or -not $Config) { return $out }
+    $grades = @($Config.rejectGrades | ForEach-Object { [string]$_ })
+    $caps = @($Config.rejectCaps | ForEach-Object { [string]$_ })
+    if ($grades -contains [string]$Grade.grade) { $out.reasons += @{ id = 'grade'; arg = [string]$Grade.grade } }
+    foreach ($c in @($Grade.caps)) {
+        $id = [string]$c.id
+        if ($id -eq 'cosmetic') {
+            $out.cosmetic = $true
+            if ($caps -contains 'cosmetic' -or [string]$CosmeticDecision -eq 'reject') { $out.reasons += @{ id = 'cosmetic'; arg = '' } }
+            elseif ([string]$CosmeticDecision -ne 'accept') { $out.cosmeticPending = $true }
+            continue
+        }
+        if ($caps -contains $id -and @($out.reasons | Where-Object { $_.id -eq $id }).Count -eq 0) { $out.reasons += @{ id = $id; arg = '' } }
+    }
+    $out.reject = (@($out.reasons).Count -gt 0)
+    return $out
 }
 
 # i18n key suffix for a grade (keys cannot rely on '+').
@@ -155,7 +197,7 @@ function Get-WkGradeKeyId([string]$Grade) { if ($Grade -eq 'A+') { return 'Aplus
 
 # Ink colours for the tag and stamp.
 function Get-WkGradeColor([string]$Grade) {
-    switch ($Grade) { 'S' { return '#7B3FE4' } 'A+' { return '#04A85A' } 'A' { return '#028EF9' } default { return '#E0560F' } }
+    switch ($Grade) { 'S' { return '#7B3FE4' } 'A+' { return '#04A85A' } 'A' { return '#028EF9' } 'C' { return '#E5484D' } 'D' { return '#8B1E2D' } default { return '#E0560F' } }
 }
 
 # Localised note for a grade row (uses T).

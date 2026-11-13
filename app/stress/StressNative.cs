@@ -1,4 +1,4 @@
-﻿// Stress workers for CPU, RAM and disk. Compiled in memory by PowerShell Add-Type (.NET Framework csc = C# 5 only:
+// Stress workers for CPU, RAM and disk. Compiled in memory by PowerShell Add-Type (.NET Framework csc = C# 5 only:
 // no string interpolation, no ?. operator, no expression-bodied members, no nameof).
 // One StressRunner runs one test at a time on its own background threads; the UI only polls its properties.
 using System;

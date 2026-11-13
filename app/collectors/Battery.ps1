@@ -1,4 +1,4 @@
-﻿# Get-WkBattery: health, cycles, runtime estimate (DATA_SOURCES.md).
+# Get-WkBattery: health, cycles, runtime estimate (DATA_SOURCES.md).
 # Primary: powercfg /batteryreport /xml (works without admin). Fallback: WMI root\wmi classes.
 
 function Get-WkBattery {

@@ -1,4 +1,4 @@
-﻿# Get-WkDriverProblems: devices whose ConfigManagerErrorCode is not 0.
+# Get-WkDriverProblems: devices whose ConfigManagerErrorCode is not 0.
 # Returns raw codes only; alarm vs info is decided in rules\Evaluate.ps1 from config\rules.json (D-005).
 
 function Get-WkDriverProblems {

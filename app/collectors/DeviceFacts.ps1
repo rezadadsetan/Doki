@@ -1,4 +1,4 @@
-﻿# Get-WkDeviceFacts (Phase 6, D-023): information only, never red.
+# Get-WkDeviceFacts (Phase 6, D-023): information only, never red.
 # RAM slots used/total + modules, Windows install date (current + original), activation, BitLocker C:, Secure Boot, TPM, domain / Entra ID join.
 
 # Pure: slots summary from Win32_PhysicalMemoryArray.MemoryDevices values and Win32_PhysicalMemory modules.
@@ -69,6 +69,13 @@ function Get-WkDeviceRows($Facts) {
     return $rows
 }
 
+# Pure: device facts result + activation result (both @{ok;data;error}) -> device facts result with .activated filled.
+function Merge-WkActivation($Device, $Activation) {
+    if (-not $Device -or -not $Device.ok -or -not $Device.data) { return $Device }
+    if ($Activation -and $Activation.ok -and $null -ne $Activation.data) { $Device.data.activated = [bool]$Activation.data }
+    return $Device
+}
+
 function Invoke-WkCapture([string]$File, [string]$Arguments, [int]$TimeoutMs = 10000) {
     $psi = New-Object System.Diagnostics.ProcessStartInfo
     $psi.FileName = $File; $psi.Arguments = $Arguments; $psi.UseShellExecute = $false
@@ -79,7 +86,16 @@ function Invoke-WkCapture([string]$File, [string]$Arguments, [int]$TimeoutMs = 1
     return $out.Result
 }
 
-function Get-WkDeviceFacts {
+# Windows activation (SoftwareLicensingProduct is slow, ~1-5 s): its own background job since 2.6.0 (#2). $true/$false/$null.
+function Get-WkActivationState {
+    Invoke-WkSafe 'activation' {
+        $lic = @(Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop)
+        (@($lic | Where-Object { [int]$_.LicenseStatus -eq 1 }).Count -gt 0)
+    }
+}
+
+# -SkipActivation: the UI runs Get-WkActivationState in parallel and merges the value (Merge-WkActivation).
+function Get-WkDeviceFacts([switch]$SkipActivation) {
     Invoke-WkSafe 'devicefacts' {
         $f = [ordered]@{ computerName = $env:COMPUTERNAME }
         # RAM slots
@@ -101,10 +117,13 @@ function Get-WkDeviceFacts {
             $f.originalInstallDate = $orig.ToString('yyyy-MM-dd')
         } catch { }
         # Activation (Windows only)
-        try {
-            $lic = @(Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop)
-            $f.activated = (@($lic | Where-Object { [int]$_.LicenseStatus -eq 1 }).Count -gt 0)
-        } catch { $f.activated = $null }
+        $f.activated = $null
+        if (-not $SkipActivation) {
+            try {
+                $lic = @(Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL" -ErrorAction Stop)
+                $f.activated = (@($lic | Where-Object { [int]$_.LicenseStatus -eq 1 }).Count -gt 0)
+            } catch { $f.activated = $null }
+        }
         # BitLocker on C: (non-admin via the shell property; admin fallback)
         $f.bitlocker = 'unknown'
         try { $f.bitlocker = ConvertFrom-WkBitLockerValue ((New-Object -ComObject Shell.Application).NameSpace('C:').Self.ExtendedProperty('System.Volume.BitLockerProtection')) } catch { }

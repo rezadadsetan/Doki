@@ -49,8 +49,8 @@ function Test-WkWritableDir([string]$Dir) {
 # guest -> paths.guest_root (fallbacks: Documents, then Reports\). index.csv lives in the chosen root.
 # Created lazily (only when a report is saved). Returns @{ root; dir; intended; fallback }.
 function Get-WkReportTarget([string]$Role, [datetime]$Now) {
-    $desktop = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Doki Reports'
-    $p = @{guest_root=$desktop;staff_root=$desktop;guest_fallbacks=@();staff_fallbacks=@()}
+    $p = $null
+    try { $p = (Get-WkRules).paths } catch { }
     $roots = @()
     if ($Role -eq 'guest') {
         if ($p -and $p.guest_root) { $roots += [string]$p.guest_root } else { $roots += '%USERPROFILE%\Desktop\Doki Reports' }
@@ -198,21 +198,148 @@ function Get-WkGradeTableHtml($Grade) {
         $h += '<p class="note">' + (ConvertTo-WkHtml (T 'grade.capsTitle')) + ': ' + ((@($Grade.caps) | ForEach-Object { Protect-WkGradeBidi (ConvertTo-WkHtml (T ('grade.cap.' + $_.id))) }) -join ' &middot; ') + '</p>'
     }
     $th = (Get-WkRules).grading.thresholds
-    $h += '<p class="note">' + (Protect-WkGradeBidi (ConvertTo-WkHtml (T 'grade.legend' $th.S $th.'A+' $th.A))) + '</p>'
+    $legend = T 'grade.legend' $th.S $th.'A+' $th.A
+    if ($null -ne $th.B -and $null -ne $th.C) { $legend = T 'grade.legend6' $th.S $th.'A+' $th.A $th.B $th.C }
+    $h += '<p class="note">' + (Protect-WkGradeBidi (ConvertTo-WkHtml $legend)) + '</p>'
     return $h
 }
 
+# ---------------- warranty return (2.7.0, org feature "warranty") ----------------
+
+function Get-WkWarrantySafe($Grade, $Checks = $null) {
+    if (-not $Grade -or -not (Get-Command Test-WkFeature -ErrorAction SilentlyContinue) -or -not (Test-WkFeature 'warranty')) { return $null }
+    $o = Get-WkOrg
+    if (-not $o -or -not $o.warranty) { return $null }
+    $dec = $null; if ($Checks) { $dec = [string]$Checks.cosmeticDecision }
+    return (Get-WkWarrantyDecision $Grade $o.warranty $dec)
+}
+
+function Format-WkWarrantyReasons($W) {
+    return ((@($W.reasons) | ForEach-Object { T ('warranty.reason.' + $_.id) $_.arg }) -join ', ')
+}
+
+# ---------------- contractor one-page summary (2.7.0, org feature "contractorLabel") ----------------
+# One A4 page (2.8.0) to print and stick on / keep with the device: everything useful, nothing long.
+function New-WkSummaryHtml($Checks, $Stress, $Verdict, $Grade, $Warranty, [string]$Technician, [string]$Asset, [datetime]$When, [string]$Notes = '') {
+    $h = { param($t) ConvertTo-WkHtml $t }
+    $dir = 'rtl'; if (-not (Test-WkRtl)) { $dir = 'ltr' }
+    $sys = $null; if ($Checks.system -and $Checks.system.ok) { $sys = $Checks.system.data }
+    $model = ''; $serial = ''; $cpu = ''; $ram = ''; $os = ''
+    if ($sys) { $model = (([string]$sys.manufacturer + ' ' + [string]$sys.model).Trim()); $serial = [string]$sys.serial; $cpu = [string]$sys.cpu; $ram = [string]$sys.ramGB + ' GB'; $os = ([string]$sys.os + ' ' + [string]$sys.build).Trim() }
+    $pill = { param($st, $txt) $c = @{ green = '#04A85A'; amber = '#E0560F'; red = '#E5484D' }[[string]$st]; if (-not $c) { $c = '#6B7080' }; '<span class="p" style="color:' + $c + ';border-color:' + $c + '">' + (& $h $txt) + '</span>' }
+
+    # results: battery, disk, drivers, updates, each stress test
+    $res = ''
+    $bat = '-'
+    if ($Checks.battery -and $Checks.battery.ok -and $Checks.battery.data.present) {
+        $b = $Checks.battery.data; $parts = @()
+        if ($null -ne $b.healthPercent) { $parts += ([string]$b.healthPercent + '%') }
+        if ($null -ne $b.cycles) { $parts += ([string]$b.cycles + ' ' + (T 'battery.cycles')) }
+        $bat = $parts -join ' · '
+    } elseif ($Checks.battery -and $Checks.battery.ok) { $bat = T 'battery.none' }
+    $res += '<tr><td>' + (& $h (T 'battery.title')) + '</td><td>' + (& $pill $Verdict.battery.status (Get-WkStatusWord $Verdict.battery.status)) + '</td><td class="ltr">' + (& $h $bat) + '</td></tr>'
+    $disk = '-'
+    if ($Checks.disks -and $Checks.disks.ok) {
+        $dl = @($Checks.disks.data.disks | Where-Object { $_ }); $ef = @($Verdict.disks.effective); $parts = @()
+        for ($i = 0; $i -lt $dl.Count; $i++) {
+            $pct = '?'; if ($i -lt $ef.Count -and $ef[$i] -and $null -ne $ef[$i].percent) { $pct = [string]$ef[$i].percent + '%' }
+            $parts += ([string]$dl[$i].busType + ' ' + [string]$dl[$i].sizeGB + ' GB ' + $pct)
+        }
+        $disk = $parts -join ' | '
+    }
+    $res += '<tr><td>' + (& $h (T 'disk.title')) + '</td><td>' + (& $pill $Verdict.disks.status (Get-WkStatusWord $Verdict.disks.status)) + '</td><td class="ltr">' + (& $h $disk) + '</td></tr>'
+    $drvN = @($Verdict.drivers.alarm | Where-Object { $_ }).Count
+    $res += '<tr><td>' + (& $h (T 'drivers.title')) + '</td><td>' + (& $pill $Verdict.drivers.status (Get-WkStatusWord $Verdict.drivers.status)) + '</td><td>' + $drvN + '</td></tr>'
+    $upd = '-'; if ($Checks.updates -and $Checks.updates.ok -and $Checks.updates.data.checked) { $upd = T 'updates.pending' ([int]$Checks.updates.data.pendingCount) }
+    $res += '<tr><td>' + (& $h (T 'updates.title')) + '</td><td>' + (& $pill $Verdict.updates.status (Get-WkStatusWord $Verdict.updates.status)) + '</td><td>' + (& $h $upd) + '</td></tr>'
+    foreach ($k in @('cpu', 'ram', 'disk', 'gpu')) {
+        $r = Get-WkStressResult $Stress $k
+        $st = @{ completed = 'green'; errors = 'red'; crashed = 'red'; stopped = 'amber'; unavailable = 'amber' }[$r]
+        $txt = switch ($r) { 'completed' { T 'stress.completed' } 'errors' { T 'stress.errors' $Stress.$k.errors } 'crashed' { T 'stress.crashed' } 'stopped' { T 'stress.stopped' } 'unavailable' { T 'stress.unavailable' '' } default { T 'stress.notRun' } }
+        $res += '<tr><td>' + (& $h (T ('stress.' + $k))) + '</td><td colspan="2">' + (& $pill $st $txt) + '</td></tr>'
+    }
+
+    # checklist as a compact grid
+    $cells = ''
+    foreach ($it in @((Get-WkRules).manual_checks | ForEach-Object { [string]$_ })) {
+        $val = $null; if ($Checks.manual) { $val = [string]$Checks.manual.$it }
+        $name = (T ('manual.' + $it)).Split('(')[0].Trim()
+        $st = 'grey'; $txt = T 'manual.notChecked'
+        if ($it -eq 'physical') {
+            $ps = Get-WkPhysicalStatus $val; $txt = Get-WkPhysicalText $val
+            if ($ps -eq 'red') { $st = 'red' } elseif ($ps -and @(ConvertTo-WkPhysicalList $val) -notcontains 'ok') { $st = 'amber' } elseif ($ps) { $st = 'green' }
+        } elseif ($val -eq 'ok') { $st = 'green'; $txt = T 'manual.ok' } elseif ($val -eq 'fail') { $st = 'red'; $txt = T 'manual.fail' }
+        $cells += '<div class="ci"><span>' + (& $h $name) + '</span>' + (& $pill $st $txt) + '</div>'
+    }
+
+    $gradeHtml = ''; $gc = '#6B7080'
+    if ($Grade) {
+        $gc = Get-WkGradeColor $Grade.grade
+        $gradeHtml = '<div class="g" style="background:' + $gc + '"><b>' + (& $h $Grade.grade) + '</b><span>' + (& $h (T ('grade.desc.' + (Get-WkGradeKeyId $Grade.grade)))) + '</span><span>' + (& $h (T 'grade.score' $Grade.score)) + '</span></div>'
+    }
+    $ov = [string]$Verdict.overall.status
+    $verdictHtml = (& $h (T 'report.verdict')) + ': ' + (& $pill $ov (Get-WkStatusWord $ov))
+    $war = ''
+    if ($Warranty -and $Warranty.reject) { $war = '<div class="war">' + (& $h (T 'warranty.title')) + '<small>' + (& $h (T 'warranty.reasons' (Format-WkWarrantyReasons $Warranty))) + '</small></div>' }
+    $dev = ''
+    foreach ($kv in @(@((T 'report.asset'), $Asset), @((T 'report.model'), $model), @((T 'report.serial'), $serial), @((T 'report.cpu'), $cpu), @((T 'report.ram'), $ram), @((T 'report.os'), $os))) {
+        $v = [string]$kv[1]; if (-not $v) { $v = '-' }
+        $dev += '<div class="kv"><span>' + (& $h $kv[0]) + '</span><b class="ltr">' + (& $h $v) + '</b></div>'
+    }
+    $notesHtml = ''; if ($Notes) { $notesHtml = '<h2>' + (& $h (T 'summary.notes')) + '</h2><p class="notes">' + (& $h $Notes) + '</p>' }
+    $css = '@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{margin:0;font-family:"Segoe UI",Tahoma,sans-serif;font-size:10.5pt;color:#252A3C}' +
+        '.page{max-width:186mm;margin:0 auto}.top{display:flex;justify-content:space-between;align-items:center;border-bottom:3px solid ' + $gc + ';padding-bottom:3mm}' +
+        '.brand{font-weight:700;font-size:18pt;direction:ltr}.muted{color:#6B7080}.g{color:#fff;border-radius:10px;padding:3mm 6mm;text-align:center;min-width:34mm}' +
+        '.g b{display:block;font-size:30pt;line-height:1.05;direction:ltr}.g span{display:block;font-size:8.5pt}.v{font-size:13pt;font-weight:700;margin:3mm 0}' +
+        '.war{background:#8B1E2D;color:#fff;border-radius:8px;padding:3mm 4mm;font-weight:700;font-size:13pt;margin:2mm 0}.war small{display:block;font-weight:400;font-size:10pt}' +
+        '.dev{display:grid;grid-template-columns:1fr 1fr;gap:1mm 6mm;margin:2mm 0}.kv{display:flex;justify-content:space-between;gap:3mm;border-bottom:1px solid #EBECF2;padding:1mm 0}.kv span{color:#6B7080}' +
+        'h2{font-size:11.5pt;margin:4mm 0 1.5mm}table{width:100%;border-collapse:collapse}td{padding:1.2mm 1mm;border-bottom:1px solid #EBECF2;vertical-align:middle}td:first-child{width:28%;color:#6B7080}' +
+        '.p{display:inline-block;border:1.5px solid;border-radius:9px;padding:0 2.5mm;font-size:9pt;font-weight:600;white-space:nowrap}' +
+        '.grid{display:grid;grid-template-columns:1fr 1fr;gap:1mm 6mm}.ci{display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid #EBECF2;padding:1mm 0;gap:2mm}' +
+        '.ltr{direction:ltr;unicode-bidi:isolate}.notes{white-space:pre-wrap;border:1px solid #EBECF2;border-radius:6px;padding:2mm;margin:0}' +
+        '.sign{display:flex;justify-content:space-between;margin-top:8mm;gap:10mm}.sign div{flex:1;border-top:1px solid #6B7080;padding-top:1.5mm;color:#6B7080}' +
+        '.pb{position:fixed;bottom:10px;inset-inline-start:10px;padding:8px 22px;font-size:12pt}@media print{.pb{display:none}}' +
+        '*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'
+    return '<!doctype html><html lang="' + $global:WkLang + '" dir="' + $dir + '"><head><meta charset="utf-8"><title>Doki ' + (& $h $Asset) + '</title><style>' + $css + '</style></head><body>' +
+        '<button class="pb" onclick="window.print()">' + (& $h (T 'summary.print')) + '</button><div class="page">' +
+        '<div class="top"><div><div class="brand">Doki QC</div><div class="muted">' + (& $h (T 'summary.title')) + ' · <span class="ltr">' + $When.ToString('yyyy-MM-dd HH:mm') + '</span></div></div>' + $gradeHtml + '</div>' +
+        '<div class="v">' + $verdictHtml + '</div>' + $war + '<div class="dev">' + $dev + '</div>' +
+        '<h2>' + (& $h (T 'summary.results')) + '</h2><table>' + $res + '</table>' +
+        '<h2>' + (& $h (T 'summary.checklist')) + '</h2><div class="grid">' + $cells + '</div>' + $notesHtml +
+        '<div class="sign"><div>' + (& $h (T 'report.technician')) + ': ' + (& $h $Technician) + '</div><div>' + (& $h (T 'summary.signature')) + '</div></div>' +
+        '</div></body></html>'
+}
+
 # One line per saved report in <root>\index.csv (UTF-8 with BOM so Excel shows Persian). Never throws.
-function Add-WkReportIndex([string]$Root, [object[]]$Fields) {
+# Fields: date, role, staff, asset, model, serial, verdict, battery_percent, battery_cycles, disk_percent, report_path[, grade].
+# 2.6.0: new files get a trailing "grade" column (old files keep their 11 columns: the grade is then left out).
+# -ReplacePath: "Update report" rewrites the row of that report instead of adding a second one (#6).
+$global:WkIndexHeader = 'date,role,staff,asset,model,serial,verdict,battery_percent,battery_cycles,disk_percent,report_path,grade'
+
+function Add-WkReportIndex([string]$Root, [object[]]$Fields, [string]$ReplacePath = '') {
     try {
         $path = Join-Path $Root 'index.csv'
-        $header = 'date,role,staff,asset,model,serial,verdict,battery_percent,battery_cycles,disk_percent,report_path'
-        $line = (($Fields | ForEach-Object { ConvertTo-WkCsvField $_ }) -join ',') + "`r`n"
+        $utf8Bom = New-Object Text.UTF8Encoding $true
         if (-not (Test-Path -LiteralPath $path)) {
-            [IO.File]::WriteAllText($path, $header + "`r`n" + $line, (New-Object Text.UTF8Encoding $true))
-        } else {
-            [IO.File]::AppendAllText($path, $line, (New-Object Text.UTF8Encoding $false))
+            $f = @($Fields); while ($f.Count -lt 12) { $f += '' }
+            [IO.File]::WriteAllText($path, $global:WkIndexHeader + "`r`n" + ((($f | ForEach-Object { ConvertTo-WkCsvField $_ }) -join ',') + "`r`n"), $utf8Bom)
+            return $path
         }
+        $lines = [IO.File]::ReadAllLines($path, [Text.Encoding]::UTF8)
+        $cols = 11; if ($lines.Count -gt 0 -and $lines[0] -match ',grade\s*$') { $cols = 12 }
+        $f = @($Fields | Select-Object -First $cols); while ($f.Count -lt $cols) { $f += '' }
+        $line = (($f | ForEach-Object { ConvertTo-WkCsvField $_ }) -join ',')
+        if ($ReplacePath) {
+            $needle = ',' + (ConvertTo-WkCsvField $ReplacePath)
+            for ($i = 1; $i -lt $lines.Count; $i++) {
+                if ($lines[$i].EndsWith($needle) -or $lines[$i].Contains($needle + ',')) {
+                    $lines[$i] = $line
+                    [IO.File]::WriteAllText($path, (($lines -join "`r`n") + "`r`n"), $utf8Bom)
+                    return $path
+                }
+            }
+        }
+        [IO.File]::AppendAllText($path, $line + "`r`n", (New-Object Text.UTF8Encoding $false))
         return $path
     } catch {
         Write-WkLog ('index.csv write failed: ' + $_.Exception.Message) 'WARN'
@@ -246,6 +373,8 @@ function Get-WkReportText($Checks, $Stress, $Verdict, [string]$Technician, [stri
     $L.Add((T 'report.verdict') + ': ' + (Get-WkStatusWord $Verdict.overall.status))
     $grade = Get-WkGradeSafe $Checks $Stress $Verdict
     if ($grade) { $L.Add((T 'grade.title') + ': ' + (Get-WkGradeLine $grade)) }
+    $war = Get-WkWarrantySafe $grade $Checks
+    if ($war -and $war.reject) { $L.Add('*** ' + (T 'warranty.title') + ' - ' + (Format-WkWarrantyReasons $war) + ' ***') }
     foreach ($r in @($Verdict.overall.reasons)) { $L.Add(' - ' + (Format-WkReasonPlain $r)) }
     $L.Add('')
     $bl = (T 'battery.title') + ': ' + (Get-WkStatusWord $Verdict.battery.status)
@@ -307,10 +436,14 @@ function Get-WkReportText($Checks, $Stress, $Verdict, [string]$Technician, [stri
 
 # Role: 'staff' (StaffId from config\staff.json, Technician = display name) or 'guest' (Technician = optional guest name).
 # Returns the HTML path; details of where it went are in $global:WkLastReport.
+# -Existing @{ path; root }: "Update report" (2.6.0, #6) overwrites that HTML/JSON and its index.csv row instead of a new report.
 function New-WkReport($Checks, $Stress, $Verdict, [string]$Technician, [string]$Asset, [string]$Notes, [switch]$Open,
-                      [string]$Role = 'staff', [string]$StaffId = '') {
+                      [string]$Role = 'staff', [string]$StaffId = '', $Existing = $null, [switch]$Summary) {
     $now = Get-Date
     $isGuest = ($Role -eq 'guest')
+    # Standalone edition (no staff login): every report is the operator's own, so no GUEST badge / GUEST__ prefix.
+    $guestMarks = $isGuest
+    if (Get-Command Get-WkEdition -ErrorAction SilentlyContinue) { if (-not (Get-WkEdition).features.staffLogin) { $guestMarks = $false } }
     if ($isGuest -and -not $Technician) { $Technician = T 'role.guest' }
     $sys = $null; if ($Checks.system -and $Checks.system.ok) { $sys = $Checks.system.data }
     $serial = ''; if ($sys) { $serial = [string]$sys.serial }
@@ -455,7 +588,9 @@ function New-WkReport($Checks, $Stress, $Verdict, [string]$Technician, [string]$
 
     # Phase 10: grade tag, stamp and score table (D-030)
     $grade = Get-WkGradeSafe $Checks $Stress $Verdict
-    $gradeTag = ''; $stamp = ''; $gradeTable = ''; $gradeLine = ''
+    $gradeTag = ''; $stamp = ''; $gradeTable = ''; $gradeLine = ''; $warrantyHtml = ''
+    $warranty = Get-WkWarrantySafe $grade $Checks
+    if ($warranty -and $warranty.reject) { $warrantyHtml = '<div class="warranty">' + (ConvertTo-WkHtml (T 'warranty.title')) + '<small>' + (ConvertTo-WkHtml (T 'warranty.reasons' (Format-WkWarrantyReasons $warranty))) + '</small></div>' }
     if ($grade) {
         $gc = Get-WkGradeColor $grade.grade
         $gradeTag = '<span class="gtag" style="background:' + $gc + '">' + (Protect-WkGradeBidi (ConvertTo-WkHtml (T 'grade.tag' $grade.grade))) + '</span>'
@@ -466,7 +601,7 @@ function New-WkReport($Checks, $Stress, $Verdict, [string]$Technician, [string]$
 
     $tpl = [IO.File]::ReadAllText((Join-Path $global:WkApp 'report\template.html'), [Text.Encoding]::UTF8)
     $vals = @{
-        gradeTag = $gradeTag; gradeLine = $gradeLine; stamp = $stamp; gradeTable = $gradeTable
+        gradeTag = $gradeTag; gradeLine = $gradeLine; stamp = $stamp; gradeTable = $gradeTable; warranty = $warrantyHtml
         roleBadge = ''
         copyLabel = (ConvertTo-WkHtml (T 'report.copy')); copiedLabel = ((T 'report.copied') -replace "'", ' ')
         lang = $global:WkLang; dir = $dir; title = (ConvertTo-WkHtml (T 'report.title')); asset = (ConvertTo-WkHtml $Asset); meta = $meta
@@ -475,17 +610,26 @@ function New-WkReport($Checks, $Stress, $Verdict, [string]$Technician, [string]$
         technicianLabel = (ConvertTo-WkHtml (T 'report.technician')); technician = (ConvertTo-WkHtml $Technician)
         generated = (ConvertTo-WkHtml (T 'report.generated' $global:WkVersion)); timestamp = $now.ToString('yyyy-MM-dd HH:mm:ss')
     }
-    if ($isGuest) { $vals.roleBadge = '<span class="badge-guest">' + (ConvertTo-WkHtml (T 'report.guestBadge')) + '</span>' }
+    if ($guestMarks) { $vals.roleBadge = '<span class="badge-guest">' + (ConvertTo-WkHtml (T 'report.guestBadge')) + '</span>' }
 
     # File name carries the details (D-012): date__asset__model__serial__staff, guest files start with GUEST__
     $model = ''; if ($sys) { $model = [string]$sys.model }
-    $parts = @($now.ToString('yyyy-MM-dd_HHmm'), (Get-WkSafeName $Asset 25), (Get-WkSafeName $model 30), (Get-WkSafeName $serial 25))
-    if ($isGuest) { $base = 'GUEST__' + ($parts -join '__') } else { $base = ($parts -join '__') + '__' + (Get-WkSafeName $StaffId 20) }
-    if ($base.Length -gt 120) { $base = $base.Substring(0, 120) }
-    $target = Get-WkReportTarget $Role $now
-    $outDir = $target.dir
-    $htmlPath = Join-Path $outDir ($base + '.html')
-    if (Test-Path -LiteralPath $htmlPath) { $base += '_' + $now.ToString('ss'); $htmlPath = Join-Path $outDir ($base + '.html') }
+    $updating = ($Existing -and $Existing.path -and (Test-Path -LiteralPath (Split-Path -Parent ([string]$Existing.path))))
+    if ($updating) {
+        $htmlPath = [string]$Existing.path
+        $outDir = Split-Path -Parent $htmlPath
+        $base = [IO.Path]::GetFileNameWithoutExtension($htmlPath)
+        $target = @{ root = [string]$Existing.root; dir = $outDir; intended = [string]$Existing.root; fallback = $false }
+        if (-not $target.root) { $target.root = $outDir }
+    } else {
+        $parts = @($now.ToString('yyyy-MM-dd_HHmm'), (Get-WkSafeName $Asset 25), (Get-WkSafeName $model 30), (Get-WkSafeName $serial 25))
+        if ($guestMarks) { $base = 'GUEST__' + ($parts -join '__') } elseif ($isGuest) { $base = ($parts -join '__') } else { $base = ($parts -join '__') + '__' + (Get-WkSafeName $StaffId 20) }
+        if ($base.Length -gt 120) { $base = $base.Substring(0, 120) }
+        $target = Get-WkReportTarget $Role $now
+        $outDir = $target.dir
+        $htmlPath = Join-Path $outDir ($base + '.html')
+        if (Test-Path -LiteralPath $htmlPath) { $base += '_' + $now.ToString('ss'); $htmlPath = Join-Path $outDir ($base + '.html') }
+    }
     $copyText = Get-WkReportText $Checks $Stress $Verdict $Technician $Asset $Role $Notes $htmlPath $now
     $global:WkLastReportText = $copyText
     $vals.copyText = ConvertTo-WkHtml $copyText
@@ -503,11 +647,22 @@ function New-WkReport($Checks, $Stress, $Verdict, [string]$Technician, [string]$
     $diskPct = ''
     $pcts = @(@($dv.effective) | Where-Object { $_ -and $null -ne $_.percent } | ForEach-Object { [double]$_.percent })
     if ($pcts.Count -gt 0) { $diskPct = ($pcts | Measure-Object -Minimum).Minimum }
-    $staffCol = $Technician; if ($isGuest) { $staffCol = '' }
-    $index = Add-WkReportIndex $target.root @($now.ToString('yyyy-MM-dd HH:mm'), $Role, $staffCol, $Asset, $model, $serial, $ov.status, $batPct, $batCyc, $diskPct, $htmlPath)
+    $staffCol = $Technician; if ($guestMarks) { $staffCol = '' }
+    $gradeCol = ''; if ($grade) { $gradeCol = [string]$grade.grade }
+    $replace = ''; if ($updating) { $replace = $htmlPath }
+    $index = Add-WkReportIndex $target.root @($now.ToString('yyyy-MM-dd HH:mm'), $Role, $staffCol, $Asset, $model, $serial, $ov.status, $batPct, $batCyc, $diskPct, $htmlPath, $gradeCol) $replace
 
-    $global:WkLastReport = @{ path = $htmlPath; dir = $outDir; root = $target.root; intended = $target.intended; fallback = $target.fallback; index = $index }
-    Write-WkLog ('report saved: ' + $htmlPath + ' (fallback=' + $target.fallback + ')')
-    if ($Open) { try { Start-Process -FilePath $htmlPath } catch { } }
+    $summaryPath = ''
+    if ($Summary) {
+        try {
+            $summaryPath = Join-Path $outDir ($base + '.summary.html')
+            [IO.File]::WriteAllText($summaryPath, (New-WkSummaryHtml $Checks $Stress $Verdict $grade $warranty $Technician $Asset $now $Notes), (New-Object Text.UTF8Encoding $true))
+        } catch { Write-WkLog ('summary page failed: ' + $_.Exception.Message) 'WARN'; $summaryPath = '' }
+    }
+    $global:WkLastReport = @{ path = $htmlPath; dir = $outDir; root = $target.root; intended = $target.intended; fallback = $target.fallback; index = $index; updated = [bool]$updating
+                              summary = $summaryPath; rejected = [bool]($warranty -and $warranty.reject) }
+    Write-WkLog ('report ' + $(if ($updating) { 'updated' } else { 'saved' }) + ': ' + $htmlPath + ' (fallback=' + $target.fallback + ')')
+    $openPath = $htmlPath; if ($summaryPath) { $openPath = $summaryPath }   # the contractor prints the one-page summary
+    if ($Open) { try { Start-Process -FilePath $openPath } catch { } }
     return $htmlPath
 }

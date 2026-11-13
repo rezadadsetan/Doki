@@ -1,4 +1,4 @@
-﻿# Get-WkSystemInfo: device identity for the top bar and the report. Non-admin.
+# Get-WkSystemInfo: device identity for the top bar and the report. Non-admin.
 
 function Get-WkSystemInfo {
     Invoke-WkSafe 'system' {

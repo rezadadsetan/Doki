@@ -1,4 +1,4 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="{{lang}}" dir="{{dir}}">
 <head>
 <meta charset="utf-8">
@@ -27,6 +27,8 @@
   .kv td:first-child { color: var(--muted); width: 32%; }
   .note { color: var(--muted); font-size: 12px; }
   .badge-guest { display: inline-block; margin-inline-start: 8px; padding: 2px 14px; border-radius: 14px; background: #FF661F; color: #fff; font-size: 15px; vertical-align: middle; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .warranty { margin: 8px 0 14px; padding: 12px 18px; border-radius: 12px; background: #8B1E2D; color: #fff; font-size: 18px; font-weight: 700; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .warranty small { display: block; font-size: 14px; font-weight: 400; margin-top: 4px; }
   .notes { white-space: pre-wrap; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; min-height: 40px; }
   footer { margin-top: 24px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--line); padding-top: 10px; display: flex; justify-content: space-between; }
   .sign { margin-top: 28px; display: flex; gap: 40px; } .sign div { flex: 1; border-top: 1px dashed var(--muted); padding-top: 6px; color: var(--muted); font-size: 12px; }
@@ -66,6 +68,7 @@
   <textarea id="copySrc" readonly aria-hidden="true">{{copyText}}</textarea>
   <div class="stampwrap">{{stamp}}</div>
   <div class="verdict st-{{overallStatus}}">{{overallText}}{{gradeLine}}{{overallReasons}}</div>
+  {{warranty}}
   {{sections}}
   <h2>{{notesTitle}}</h2>
   <div class="notes">{{notes}}</div>

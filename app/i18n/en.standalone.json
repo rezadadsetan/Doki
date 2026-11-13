@@ -1,0 +1,10 @@
+{
+  "login.pick": "Enter your name and the asset tag to begin.",
+  "login.guestName": "Full name",
+  "login.contractorName": "Full name",
+  "login.contractor": "Local check",
+  "role.guest": "Technician",
+  "home.fillHint": "Enter your name and the asset tag",
+  "doki.hello.guestNamed": "Hi {0}! Enter the asset tag to start.",
+  "doki.report.saved": "Report saved! Press \"Next device\" when you are ready."
+}

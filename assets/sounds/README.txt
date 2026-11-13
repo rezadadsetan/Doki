@@ -1,4 +1,4 @@
-﻿Doki - sound and video files (they ship inside the package; the app reads them only from this folder)
+Doki - sound and video files (they ship inside the package; the app reads them only from this folder)
 
 Names are set in config\rules.json -> "sounds" -> "files":
 

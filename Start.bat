@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 rem Doki launcher: asks for administrator (UAC), then starts the app.
 rem   Start.bat         normal start (console hidden)
 rem   Start.bat debug   keep the console visible to see errors
