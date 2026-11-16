@@ -142,6 +142,12 @@ function Get-WkStressState {
 # 2.6.0 (#3): the UI only signals the stop (no 15 s wait on the UI thread); Get-WkStressState reports "stopped" when the
 # worker threads have finished. -Wait is used on window close / self-test only.
 function Stop-WkStress([switch]$Wait) {
+    if ($global:WkStressGroup) {
+        $group = $global:WkStressGroup; $global:WkStressGroup = $null
+        try { foreach ($ctx in $group.Values) { $global:WkRunner = $ctx.runner; $global:WkStressCurrent = $ctx.state; Stop-WkStress -Wait:$Wait } }
+        finally { $global:WkStressGroup = $group }
+        return
+    }
     $s = $global:WkStressCurrent
     if (-not $s) { return }
     if ($s.kind -eq 'gpu') {

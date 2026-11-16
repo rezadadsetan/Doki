@@ -170,7 +170,7 @@
   "manual.kbHint": "همه کلیدها را یکی‌یکی بزنید؛ کلیدهای زده‌شده سبز می‌شوند.",
   "manual.kbCount": "{0} از {1} کلید",
   "manual.kbDone": "تمام",
-  "manual.kbMissingKeys": "کیبورد من بعضی دکمه‌ها را ندارد (کلیدهای موجود را بررسی کردم)",
+  "manual.kbMissingKeys": "فرمت کیبورد من متفاوت است (کلیدهای موجود را بررسی کردم)",
   "manual.reasonFail": "{0}: مشکل دارد",
   "manual.reasonNotChecked": "{0} مورد دستی بررسی نشد",
   "history.title": "گزارش‌های قبلی",

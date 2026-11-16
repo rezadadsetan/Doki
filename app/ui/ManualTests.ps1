@@ -363,6 +363,10 @@ function Show-WkKeyboardTest {
 
     $global:WkKbKeys = @{}   # [int]Key -> Border
     $total = 0
+    $keyboard = New-Object System.Windows.Controls.StackPanel
+    $keyboard.Orientation = 'Horizontal'; $keyboard.FlowDirection = 'LeftToRight'
+    $letters = New-Object System.Windows.Controls.StackPanel
+    [void]$keyboard.Children.Add($letters)
     foreach ($r in $rows) {
         $rp = New-Object System.Windows.Controls.StackPanel
         $rp.Orientation = 'Horizontal'; $rp.Margin = '0,3'; $rp.FlowDirection = 'LeftToRight'
@@ -380,8 +384,34 @@ function Show-WkKeyboardTest {
             $global:WkKbKeys[[int]$key] = $bd
             $total++
         }
-        [void]$root.Children.Add($rp)
+        [void]$letters.Children.Add($rp)
     }
+    $pad = New-Object System.Windows.Controls.Grid
+    $pad.Margin = '16,64,0,0'; $pad.VerticalAlignment = 'Top'
+    for ($i = 0; $i -lt 4; $i++) { $col = New-Object System.Windows.Controls.ColumnDefinition; $col.Width = 68; [void]$pad.ColumnDefinitions.Add($col) }
+    for ($i = 0; $i -lt 5; $i++) { $row = New-Object System.Windows.Controls.RowDefinition; $row.Height = 58; [void]$pad.RowDefinitions.Add($row) }
+    $specs = @('NumLock|Num|0|0|1|1','Divide|/|0|1|1|1','Multiply|*|0|2|1|1','Subtract|-|0|3|1|1',
+        'NumPad7|7|1|0|1|1','NumPad8|8|1|1|1|1','NumPad9|9|1|2|1|1','Add|+|1|3|2|1',
+        'NumPad4|4|2|0|1|1','NumPad5|5|2|1|1|1','NumPad6|6|2|2|1|1',
+        'NumPad1|1|3|0|1|1','NumPad2|2|3|1|1|1','NumPad3|3|3|2|1|1','Return|Enter|3|3|2|1',
+        'NumPad0|0|4|0|1|2','Decimal|.|4|2|1|1')
+    foreach ($spec in $specs) {
+        $parts = $spec.Split('|'); $id = [int][System.Windows.Input.Key]$parts[0]
+        $bd = New-Object System.Windows.Controls.Border
+        $bd.Margin = '3'; $bd.CornerRadius = 8; $bd.BorderThickness = 1.5
+        $bd.Background = Get-WkBrush 'C.Surface'; $bd.BorderBrush = Get-WkBrush 'C.Input'
+        $tx = New-Object System.Windows.Controls.TextBlock
+        $tx.Text = $parts[1]; $tx.FontSize = 15; $tx.HorizontalAlignment = 'Center'; $tx.VerticalAlignment = 'Center'; $bd.Child = $tx
+        [System.Windows.Controls.Grid]::SetRow($bd,[int]$parts[2]); [System.Windows.Controls.Grid]::SetColumn($bd,[int]$parts[3])
+        [System.Windows.Controls.Grid]::SetRowSpan($bd,[int]$parts[4]); [System.Windows.Controls.Grid]::SetColumnSpan($bd,[int]$parts[5])
+        [void]$pad.Children.Add($bd)
+        if ($global:WkKbKeys.ContainsKey($id)) { $global:WkKbKeys[$id] = @($global:WkKbKeys[$id], $bd) }
+        else { $global:WkKbKeys[$id] = $bd; $total++ }
+    }
+    [void]$keyboard.Children.Add($pad)
+    $fit = New-Object System.Windows.Controls.Viewbox
+    $fit.Stretch = 'Uniform'; $fit.StretchDirection = 'DownOnly'; $fit.Child = $keyboard
+    [void]$root.Children.Add($fit)
     $missing = New-Object System.Windows.Controls.CheckBox
     $missing.Content = T 'manual.kbMissingKeys'; $missing.Margin = '0,12,0,0'; $missing.FontSize = 15
     $missing.Focusable = $false; $missing.Name = 'KbMissingKeys'
@@ -405,8 +435,9 @@ function Show-WkKeyboardTest {
         $e.Handled = $true                                                     # keep Tab/Alt/arrows from moving focus or opening menus
         $id = [int]$k
         if ($global:WkKbKeys.ContainsKey($id)) {
-            $b = $global:WkKbKeys[$id]
-            $b.Background = Get-WkBrush 'C.Brand'; $b.BorderBrush = Get-WkBrush 'C.Green.Fg'; $b.Child.Foreground = Get-WkBrush 'C.White'
+            foreach ($b in @($global:WkKbKeys[$id])) {
+                $b.Background = Get-WkBrush 'C.Brand'; $b.BorderBrush = Get-WkBrush 'C.Green.Fg'; $b.Child.Foreground = Get-WkBrush 'C.White'
+            }
             $global:WkKbHit[$id] = $true
             $global:WkKbCount.Text = T 'manual.kbCount' $global:WkKbHit.Count $global:WkKbTotal
         }

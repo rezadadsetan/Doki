@@ -1466,6 +1466,21 @@ function Stop-WkTempSampler {
     try { [void]$j.ps.BeginStop($null, $null) } catch { }
 }
 
+function Start-WkStressTogether {
+    if ($global:WkState.currentKind) { return }
+    $global:WkState.queue = @(); $global:WkStressGroup = @{}
+    $secs = Get-WkSelectedSeconds
+    foreach ($kind in @('gpu','ram','disk','cpu')) {
+        $global:WkRunner = $null
+        $s = Start-WkStress $kind $secs
+        $global:WkStressGroup[$kind] = @{ runner = $global:WkRunner; state = $s }
+        $global:WkState.stress[$kind] = @{ result = $s.status; seconds = $secs }
+        Update-WkStressRow $kind
+    }
+    $global:WkState.currentKind = 'cpu'; $global:WkState.stopping = $false
+    Start-WkTempSampler; Update-WkStressButtons
+}
+
 function Start-WkStressUi([string]$Kind) {
     if ($global:WkState.currentKind) { return }
     $secs = Get-WkSelectedSeconds
@@ -1501,6 +1516,21 @@ function Complete-WkStressUi($S) {
 }
 
 function Update-WkStressPoll {
+    if ($global:WkStressGroup) {
+        $pending = $false
+        foreach ($kind in @($global:WkStressGroup.Keys)) {
+            $ctx = $global:WkStressGroup[$kind]
+            $global:WkRunner = $ctx.runner; $global:WkStressCurrent = $ctx.state
+            $s = Get-WkStressState
+            if ($s.status -eq 'running') { $pending = $true; Update-WkStressRow $kind $s }
+            else {
+                $global:WkState.stress[$kind] = @{ result = $s.status; errors = $s.errors; detail = $s.detail; error = $s.error; seconds = $s.seconds }
+                Update-WkStressRow $kind
+            }
+        }
+        if (-not $pending) { $global:WkStressGroup = $null; $global:WkState.currentKind = $null; $global:WkState.stopping = $false; Stop-WkTempSampler; Set-WkDirty; Update-WkStressButtons }
+        return
+    }
     $k = $global:WkState.currentKind
     if (-not $k) { return }
     if ($global:WkTempSync) { $global:WkState.temp = $global:WkTempSync.temp }
@@ -1807,7 +1837,7 @@ function Start-WkUi {
     $u.RamStart.Add_Click({ Invoke-WkUiSafe { Start-WkStressUi 'ram' } })
     $u.DiskStart.Add_Click({ Invoke-WkUiSafe { Start-WkStressUi 'disk' } })
     $u.GpuStart.Add_Click({ Invoke-WkUiSafe { Start-WkStressUi 'gpu' } })
-    $u.BtnRunAll.Add_Click({ Invoke-WkUiSafe { $global:WkState.queue = @('ram', 'disk', 'gpu'); Start-WkStressUi 'cpu' } })
+    $u.BtnRunAll.Add_Click({ Invoke-WkUiSafe { Start-WkStressTogether } })
     $u.BtnStop.Add_Click({ Invoke-WkUiSafe { Stop-WkStressUi } })
     $u.BtnStressBack.Add_Click({ Invoke-WkUiSafe { if ($global:WkState.checksStarted) { Show-WkScreen 'ScreenChecks' } else { Show-WkScreen 'ScreenHome' } } })
     $u.BtnToReport.Add_Click({ Invoke-WkUiSafe { Show-WkScreen 'ScreenManual' } })

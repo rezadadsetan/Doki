@@ -170,7 +170,7 @@
   "manual.kbHint": "Press every key once; pressed keys turn green.",
   "manual.kbCount": "{0} of {1} keys",
   "manual.kbDone": "Done",
-  "manual.kbMissingKeys": "My keyboard does not have some keys (I checked the available keys)",
+  "manual.kbMissingKeys": "My keyboard layout is different (I checked the available keys)",
   "manual.reasonFail": "{0}: problem",
   "manual.reasonNotChecked": "{0} manual items not checked",
   "history.title": "Previous reports",

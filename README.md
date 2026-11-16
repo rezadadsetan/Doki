@@ -12,6 +12,8 @@
 
 ## Development
 
+آخرین تغییرات ۲۰۲۶/۱۱/۱۶: نام‌پد در سمت راست با صفر عریض و کلیدهای عمودی + و Enter نمایش داده می‌شود. گزینهٔ «فرمت کیبورد من متفاوت است» پس از بررسی کلیدهای موجود، انتخاب سالم را ممکن می‌کند. «اجرای همه» CPU/RAM/دیسک/GPU را هم‌زمان آغاز می‌کند؛ وضعیت‌ها مستقل‌اند و توقف، همه را متوقف می‌کند. اجرای هم‌زمان روی سخت‌افزار واقعی و ظاهر نهایی در دستگاه مقصد هنوز نیازمند بررسی عملی است.
+
 Source scripts are under app/, standalone configuration under config/. Run Start.bat to use the source. Windows PowerShell 5.1 and .NET Framework are required. Native helper DLL is included with its C# sources. Run tools/Build-Exe.ps1 to produce dist/Doki-2.9.0.exe. The download under releases/ is the verified delivery; build output is separate.
 
 Validation: organization wording/module/feature checks and installed payload hashes passed for the delivered EXE. Real UAC and physical keyboard/hardware checks remain manual. EXE is unsigned. No online account or API key is required.
