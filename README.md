@@ -1,4 +1,22 @@
+<div align="center">
+
+<img src="./assets/readme/doki-banner.svg" width="1200" alt="Doki Standalone — Catppuccin Mocha hardware diagnostic dashboard" />
+
 # Doki Standalone 2.9.0
+
+**دکتر لپ‌تاپ شما؛ یک فایل، بررسی کامل، گزارش محلی.**
+
+![Windows](https://img.shields.io/badge/Windows-10%20%2F%2011-313244?style=for-the-badge&labelColor=1e1e2e&color=89b4fa)
+![Local](https://img.shields.io/badge/Reports-Local-313244?style=for-the-badge&labelColor=1e1e2e&color=a6e3a1)
+![Single EXE](https://img.shields.io/badge/Download-Single_EXE-313244?style=for-the-badge&labelColor=1e1e2e&color=cba6f7)
+
+[**دانلود برای ویندوز**](https://github.com/rezadadsetan/Doki/raw/refs/heads/main/releases/Doki-2.9.0.exe) · [تغییرات](./CHANGELOG.md) · [سورس](./app)
+
+</div>
+
+| ۱ · اجرا | ۲ · بررسی | ۳ · تست | ۴ · گزارش |
+|---|---|---|---|
+| یک EXE، تأیید UAC | باتری، دیسک، درایورها | فشار هم‌زمان و چک‌لیست | HTML و JSON محلی |
 
 ابزار مستقل بررسی سلامت لپ‌تاپ برای Windows 10/11.
 
@@ -19,3 +37,5 @@ Source scripts are under app/, standalone configuration under config/. Run Start
 Validation: organization wording/module/feature checks and installed payload hashes passed for the delivered EXE. Real UAC and physical keyboard/hardware checks remain manual. EXE is unsigned. No online account or API key is required.
 
 Created by Reza Dadsetan.
+ 
+README palette: [Catppuccin Mocha](https://github.com/catppuccin/catppuccin). Original Doki artwork; no theme affiliation.

@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="420" viewBox="0 0 1200 420" role="img" aria-labelledby="title desc">
+<title id="title">Doki STANDALONE</title><desc id="desc">Your laptop doctor. One download. Local reports. Battery, disk, drivers and concurrent stress testing.</desc>
+<rect width="1200" height="420" rx="24" fill="#1e1e2e"/>
+<g font-family="Segoe UI,Arial,sans-serif">
+<rect x="40" y="36" width="166" height="28" rx="14" fill="#313244"/><text x="57" y="55" fill="#cba6f7" font-size="12" letter-spacing="2">STANDALONE</text>
+<text x="40" y="146" font-size="80" font-weight="700" fill="#cdd6f4">Doki<tspan fill="#cba6f7">.</tspan></text>
+<text x="44" y="185" font-size="20" fill="#bac2de">Your laptop doctor. One download. Local reports.</text>
+<text x="44" y="220" font-size="14" fill="#cba6f7" letter-spacing="2">WINDOWS 10 / 11     ·     SINGLE EXE     ·     FA / EN</text>
+<rect x="780" y="45" width="365" height="214" rx="18" fill="#313244" stroke="#cba6f7" stroke-width="2"/>
+<circle cx="808" cy="68" r="4" fill="#a6e3a1"/><text x="823" y="73" fill="#bac2de" font-size="12">DOKI / HARDWARE CHECK</text>
+<path d="M808 98H1115" stroke="#1e1e2e" stroke-width="2"/>
+<text x="810" y="129" fill="#cdd6f4" font-size="15">BATTERY</text><text x="1098" y="129" fill="#a6e3a1" font-size="15" text-anchor="end">HEALTH</text>
+<rect x="810" y="144" width="290" height="9" rx="4" fill="#1e1e2e"/><rect x="810" y="144" width="236" height="9" rx="4" fill="#a6e3a1"/>
+<text x="810" y="184" fill="#cdd6f4" font-size="15">CPU · RAM · DISK · GPU</text>
+<path d="M810 225h30l12-19 16 28 16-35 17 26h32l14-15 14 15h139" fill="none" stroke="#cba6f7" stroke-width="3"/>
+<rect x="40" y="300" width="270" height="76" rx="12" fill="#313244"/><text x="58" y="330" fill="#cba6f7" font-size="12">01</text><text x="58" y="355" fill="#cdd6f4" font-size="15" font-weight="600">BATTERY + DISK</text><rect x="330" y="300" width="270" height="76" rx="12" fill="#313244"/><text x="348" y="330" fill="#cba6f7" font-size="12">02</text><text x="348" y="355" fill="#cdd6f4" font-size="15" font-weight="600">DRIVERS + UPDATES</text><rect x="620" y="300" width="270" height="76" rx="12" fill="#313244"/><text x="638" y="330" fill="#cba6f7" font-size="12">03</text><text x="638" y="355" fill="#cdd6f4" font-size="15" font-weight="600">CONCURRENT STRESS</text><rect x="910" y="300" width="270" height="76" rx="12" fill="#313244"/><text x="928" y="330" fill="#cba6f7" font-size="12">04</text><text x="928" y="355" fill="#cdd6f4" font-size="15" font-weight="600">KEYBOARD + REPORT</text>
+</g></svg>
